@@ -56,6 +56,19 @@ import Counter from "@/components/Counter";
 
 `client:visible` loads the component's JavaScript only when it scrolls into view. Everything else in the post stays static HTML.
 
+## Comments
+
+Every post ends with a comments section run by [giscus](https://giscus.app). The comments are stored in this repository's [GitHub Discussions](https://github.com/kerematam/kerematam.com/discussions), one discussion per post, and a reader needs a GitHub account to write one. There is no database and no secret: the values in `src/components/Comments.astro` are public identifiers.
+
+- **One-time setup:** the repository must be public, have Discussions turned on (done), and have the [giscus app](https://github.com/apps/giscus) installed on it. Until the app is installed the section shows "giscus is not installed on this repository".
+- **Which discussion belongs to a post:** the post's path, for example `posts/accessible-pdfs`. giscus creates the discussion in the Announcements category when the first comment or reaction arrives. Renaming a post's file starts it on a new, empty discussion, so do not rename a post that already has comments.
+- **Moderating:** edit, hide, delete or lock comments on GitHub, in the discussion itself. You get GitHub notifications for new comments if you watch the repository.
+- **Loading:** nothing is requested from giscus.app until a reader scrolls near the comments, so reading a post from the top makes no third-party request. The widget follows the site's light and dark toggle.
+- **Where it may run:** `giscus.json` in the repository root lists the sites allowed to show these comments: `kerematam.com`, `www.kerematam.com`, the Worker's `workers.dev` address and `localhost`. It takes effect once it is pushed to `main`. Add any new address there, or the widget refuses to load on it.
+- **Turning it off:** remove the `<Comments />` line in `src/pages/posts/[...slug]/index.astro`.
+
+Comments carried over from the old blog (`archivedComments`, above) are separate: they are fixed text in the post and show above the live section.
+
 ## Configure
 
 Everything is in `astro-paper.config.ts`:
@@ -80,9 +93,10 @@ Placeholders are marked `TODO(kerem)`: the description and timezone in the confi
 2. Confirm the wording of `src/content/pages/about.md`. It was drafted from your notes.
 3. Add the GitHub profile URL to `socials` in the config and to the home page.
 4. Set `site.timezone`.
-5. `npm run build` and look at `dist/og.png`.
-6. `npx wrangler login`
-7. `npm run deploy`
+5. Install the [giscus app](https://github.com/apps/giscus) on the `kerematam/kerematam.com` repository, so the comments section works.
+6. `npm run build` and look at `dist/og.png`.
+7. `npx wrangler login`
+8. `npm run deploy`
 
 ## Cloudflare, exact steps in order
 

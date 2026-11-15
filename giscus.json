@@ -1,0 +1,8 @@
+{
+  "origins": ["https://kerematam.com", "https://www.kerematam.com"],
+  "originsRegex": [
+    "^https://([a-z0-9-]+-)?kerematam-com\\.[a-z0-9-]+\\.workers\\.dev$",
+    "^http://localhost:[0-9]+$"
+  ],
+  "defaultCommentOrder": "oldest"
+}

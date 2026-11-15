@@ -5,6 +5,7 @@ import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
 import Datetime from "@/components/Datetime.astro";
 import Tag from "@/components/Tag.astro";
+import Comments from "@/components/Comments.astro";
 import { getPostSlug, getPostUrl } from "@/utils/getPostPaths";
 import { getSortedPosts } from "@/utils/getSortedPosts";
 import { slugifyStr } from "@/utils/slugify";
@@ -92,6 +93,14 @@ const postZone = resolveTimezone(timezone ?? config.site.timezone);
 const postYear = dayjs(pubDatetime).tz(postZone).year();
 const isOldPost =
   dayjs().diff(dayjs(modDatetime ?? pubDatetime), "year") >= OLD_POST_YEARS;
+
+// The name of this post's comment thread: its path without the slashes at
+// either end, e.g. "posts/my-post". Renaming a post's file moves it to a
+// new, empty thread.
+const commentsTerm = getPostUrl(post.id, post.filePath, locale).replace(
+  /^\/+|\/+$/g,
+  ""
+);
 
 const { Content, headings } = await render(post);
 const tocHeadings = config.features.toc && !hideToc ? headings : [];
@@ -182,43 +191,6 @@ const ogImage = ogImageUrl
       </article>
     </div>
 
-    {
-      archivedComments.length > 0 && (
-        <section
-          aria-labelledby="old-comments"
-          data-pagefind-ignore
-          class="mt-12"
-        >
-          <h2 id="old-comments" class="text-xl font-semibold">
-            Comments from the old blog
-          </h2>
-          <p class="mt-1 text-sm">
-            Shown as they were written. New comments are closed.
-          </p>
-          <ol role="list" class="mt-4 space-y-4">
-            {archivedComments.map(({ author, date, text, note }) => (
-              <li class="border-border bg-muted/30 rounded border p-4">
-                <p class="text-sm">
-                  <strong>{author}</strong>
-                  {" · "}
-                  <time datetime={date.toISOString()}>
-                    {dayjs(date).tz(postZone).format("D MMM, YYYY")}
-                  </time>
-                </p>
-                {note && <p class="mt-1 text-sm italic">{note}</p>}
-                {text
-                  .split(/\n\s*\n/)
-                  .filter(paragraph => paragraph.trim())
-                  .map(paragraph => (
-                    <p class="mt-3 whitespace-pre-line">{paragraph.trim()}</p>
-                  ))}
-              </li>
-            ))}
-          </ol>
-        </section>
-      )
-    }
-
     <hr class="my-8 border-dashed" />
 
     <BackToTopButton headings={tocHeadings} />
@@ -236,6 +208,45 @@ const ogImage = ogImageUrl
       </div>
 
       <ShareLinks />
+    </div>
+
+    <hr class="my-8 border-dashed" />
+
+    <div class="space-y-10">
+      {
+        archivedComments.length > 0 && (
+          <section aria-labelledby="old-comments" data-pagefind-ignore>
+            <h2 id="old-comments" class="text-xl font-semibold">
+              Comments from the old blog
+            </h2>
+            <p class="mt-1 text-sm">
+              Shown as they were written. New comments go in the section below.
+            </p>
+            <ol role="list" class="mt-4 space-y-4">
+              {archivedComments.map(({ author, date, text, note }) => (
+                <li class="border-border bg-muted/30 rounded border p-4">
+                  <p class="text-sm">
+                    <strong>{author}</strong>
+                    {" · "}
+                    <time datetime={date.toISOString()}>
+                      {dayjs(date).tz(postZone).format("D MMM, YYYY")}
+                    </time>
+                  </p>
+                  {note && <p class="mt-1 text-sm italic">{note}</p>}
+                  {text
+                    .split(/\n\s*\n/)
+                    .filter(paragraph => paragraph.trim())
+                    .map(paragraph => (
+                      <p class="mt-3 whitespace-pre-line">{paragraph.trim()}</p>
+                    ))}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )
+      }
+
+      <Comments term={commentsTerm} />
     </div>
 
     <hr class="my-8 border-dashed" />

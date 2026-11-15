@@ -1,0 +1,148 @@
+---
+// Comments under a post, kept in GitHub Discussions through giscus
+// (https://giscus.app). Each post gets one discussion, found by `term`.
+//
+// Nothing is loaded from giscus.app until the reader scrolls near this
+// section, so a post read from the top makes no third-party request.
+
+// Where the comments live. The two ids come from https://giscus.app after
+// entering the repository name; they are public identifiers, not secrets.
+const GISCUS = {
+  repo: "kerematam/kerematam.com",
+  repoId: "R_kgDOVvo90w",
+  category: "Announcements",
+  categoryId: "DIC_kwDOVvo9084DLNnE",
+};
+
+type Props = {
+  /**
+   * The name of this post's discussion. Keep it stable: changing it starts
+   * the post on a new, empty discussion.
+   */
+  term: string;
+};
+
+const { term } = Astro.props;
+---
+
+<section id="comments" aria-labelledby="comments-title" data-pagefind-ignore>
+  <h2 id="comments-title" class="text-xl font-semibold">Comments</h2>
+  <p class="mt-1 text-sm">
+    Comments are kept in{" "}
+    <a
+      class="hover:text-accent underline decoration-dashed underline-offset-4"
+      href={`https://github.com/${GISCUS.repo}/discussions`}
+      >GitHub Discussions</a
+    >. You need a GitHub account to write one.
+  </p>
+  <div
+    class="giscus mt-4"
+    data-repo={GISCUS.repo}
+    data-repo-id={GISCUS.repoId}
+    data-category={GISCUS.category}
+    data-category-id={GISCUS.categoryId}
+    data-term={term}
+  >
+  </div>
+</section>
+
+<script>
+  const GISCUS_ORIGIN = "https://giscus.app";
+
+  // True once the comments frame has answered; before that it cannot be told
+  // about a theme change.
+  let frameReady = false;
+  // The theme the frame was last given.
+  let frameTheme = "";
+
+  /** The giscus theme that matches the site theme in <html data-theme>. */
+  function giscusTheme(): string {
+    return document.documentElement.dataset.theme === "dark"
+      ? "transparent_dark"
+      : "light";
+  }
+
+  function syncTheme(): void {
+    const theme = giscusTheme();
+    if (!frameReady || theme === frameTheme) return;
+    const frame = document.querySelector<HTMLIFrameElement>(
+      "iframe.giscus-frame"
+    );
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.postMessage(
+      { giscus: { setConfig: { theme } } },
+      GISCUS_ORIGIN
+    );
+    frameTheme = theme;
+  }
+
+  function load(container: HTMLElement): void {
+    if (container.dataset.loaded) return;
+    container.dataset.loaded = "true";
+    frameReady = false;
+    frameTheme = giscusTheme();
+
+    const { repo, repoId, category, categoryId, term } = container.dataset;
+    const settings: Record<string, string | undefined> = {
+      repo,
+      "repo-id": repoId,
+      category,
+      "category-id": categoryId,
+      mapping: "specific",
+      term,
+      strict: "1",
+      "reactions-enabled": "1",
+      "emit-metadata": "0",
+      "input-position": "bottom",
+      theme: frameTheme,
+      lang: "en",
+    };
+
+    const script = document.createElement("script");
+    script.src = `${GISCUS_ORIGIN}/client.js`;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    for (const [name, value] of Object.entries(settings)) {
+      if (value) script.setAttribute(`data-${name}`, value);
+    }
+    container.after(script);
+  }
+
+  function init(): void {
+    const container = document.querySelector<HTMLElement>(".giscus[data-repo]");
+    if (!container) return;
+
+    // Coming back from signing in on GitHub: giscus has to read the address
+    // straight away, so do not wait for a scroll.
+    if (new URLSearchParams(location.search).has("giscus")) {
+      load(container);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (!entries.some(entry => entry.isIntersecting)) return;
+        observer.disconnect();
+        load(container);
+      },
+      { rootMargin: "600px 0px" }
+    );
+    observer.observe(container);
+  }
+
+  // The frame reports its height as soon as it has drawn, which is the sign
+  // that it can take a theme change.
+  window.addEventListener("message", event => {
+    if (event.origin !== GISCUS_ORIGIN) return;
+    frameReady = true;
+    syncTheme();
+  });
+
+  new MutationObserver(syncTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+
+  // Runs on the first load and after every in-site navigation.
+  document.addEventListener("astro:page-load", init);
+</script>
