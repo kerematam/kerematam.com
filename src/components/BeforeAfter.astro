@@ -1,0 +1,75 @@
+---
+/**
+ * A before/after comparison for posts. Wraps two <BeforeAfterSide> blocks:
+ * side by side when the column is wide enough, stacked on a narrow screen.
+ * See src/content/posts/accessible-pdfs.mdx for usage.
+ */
+---
+
+<div class="before-after">
+  <slot />
+</div>
+
+<style is:global>
+  /* Global on purpose: the sides' content is slotted in from MDX. */
+  .before-after {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    margin-block: 1.5rem;
+  }
+  @media (min-width: 48rem) {
+    .before-after {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .before-after .ba-side {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+  }
+  .before-after .ba-title {
+    margin: 0;
+    padding: 0.375rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .before-after .ba-label {
+    margin: 0.75rem 0.75rem 0;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  /* Prose inside a side (for example an alt text sample). */
+  .before-after .ba-side > p:not(.ba-title, .ba-label) {
+    margin: 0.375rem 0.75rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+  /* Code inside a side: smaller, edge to edge, so two fit next to each other. */
+  .before-after .ba-side pre {
+    margin: 0.375rem 0 0;
+    padding: 0.625rem 0.5rem;
+    border-inline: 0;
+    border-radius: 0;
+    font-size: 0.75rem;
+    line-height: 1.6;
+  }
+  .before-after .ba-side > :last-child pre,
+  .before-after .ba-side > pre:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 0.375rem 0.375rem;
+  }
+  /* The changed lines, tinted by side. */
+  .before-after .ba-before .line.highlighted {
+    background: color-mix(in oklab, #ef4444 16%, transparent);
+  }
+  .before-after .ba-after .line.highlighted {
+    background: color-mix(in oklab, #22c55e 18%, transparent);
+  }
+</style>

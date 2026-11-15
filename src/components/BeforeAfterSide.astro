@@ -1,0 +1,15 @@
+---
+/**
+ * One side of a <BeforeAfter> comparison. Put Markdown inside: code fences,
+ * and `<p class="ba-label">…</p>` for the small caption above each block.
+ */
+type Props = { kind: "before" | "after" };
+
+const { kind } = Astro.props;
+const title = kind === "before" ? "Before" : "After";
+---
+
+<div class:list={["ba-side", `ba-${kind}`]}>
+  <p class="ba-title">{title}</p>
+  <slot />
+</div>

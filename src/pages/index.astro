@@ -1,0 +1,151 @@
+---
+import { getCollection } from "astro:content";
+import { getRelativeLocaleUrl } from "astro:i18n";
+import IconRss from "@/assets/icons/IconRss.svg";
+import IconArrowRight from "@/assets/icons/IconArrowRight.svg";
+import Layout from "@/layouts/Layout.astro";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+import Socials from "@/components/Socials.astro";
+import Card from "@/components/Card.astro";
+import LinkButton from "@/components/LinkButton.astro";
+import { getSortedPosts } from "@/utils/getSortedPosts";
+import { keepTogether } from "@/utils/keepTogether";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+
+const { site, socials, posts: postsConfig } = config;
+
+const locale = Astro.currentLocale ?? config.site.lang;
+const t = useTranslations(locale);
+
+const posts = await getCollection("posts");
+const sortedPosts = getSortedPosts(posts);
+const featuredPosts = sortedPosts.filter(({ data }) => data.featured);
+const recentPosts = sortedPosts.filter(({ data }) => !data.featured);
+const homePath = getRelativeLocaleUrl(locale, "");
+
+// TODO(kerem): the GitHub profile link is still missing. Add it to `socials`
+// in astro-paper.config.ts and it will show in the row of icons below.
+
+// Open-source work listed under the intro. Keep each summary to a few words.
+const projects = [
+  {
+    name: "Typfolio",
+    url: "https://typfolio.kerematam.com/",
+    summary: "accessible PDFs in the browser, from Typst templates and data",
+  },
+  {
+    name: "SahneJS",
+    url: "https://sahne-js.kerematam.com/",
+    summary: "test local code on real sites by intercepting browser requests",
+  },
+];
+
+// Control where the intro may wrap; see keepTogether.
+const intro = keepTogether(site.description);
+---
+
+<Layout>
+  <Header titleAsHeading />
+  <main
+    id="main-content"
+    data-layout="index"
+    data-home-path={homePath}
+    class="app-layout my-1"
+  >
+    <section id="hero" class="border-border border-b pt-8 pb-6">
+      <p class="text-balance">{intro}</p>
+      <ul role="list" aria-label="Projects" class="mt-3 space-y-1">
+        {
+          projects.map(({ name, url, summary }) => (
+            <li>
+              <LinkButton
+                class="hover:text-accent underline decoration-dashed underline-offset-4"
+                href={url}
+              >
+                {name}
+              </LinkButton>
+              : {summary}
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="mt-4 flex max-sm:flex-col sm:items-center">
+        <div class="me-2 mb-1 whitespace-nowrap sm:mb-0">
+          {t.home.socialLinks}:
+        </div>
+        <div class="flex flex-wrap items-center gap-1">
+          {socials.length > 0 && <Socials />}
+          <LinkButton
+            href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}rss.xml`}
+            target="_blank"
+            class="p-2 hover:rotate-6 sm:p-1"
+            title="RSS Feed"
+          >
+            <IconRss
+              class="stroke-accent inline-block size-6 scale-110 stroke-2 rtl:-rotate-90"
+            />
+            <span class="sr-only">RSS Feed</span>
+          </LinkButton>
+        </div>
+      </div>
+    </section>
+
+    {
+      featuredPosts.length > 0 && (
+        <section
+          id="featured"
+          class:list={[
+            "pt-12 pb-6",
+            { "border-border border-b": recentPosts.length > 0 },
+          ]}
+        >
+          <h2 class="text-2xl font-semibold tracking-wide">
+            {t.home.featured}
+          </h2>
+          <ul>
+            {featuredPosts.map(data => (
+              <Card variant="h3" {...data} />
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    {
+      recentPosts.length > 0 && (
+        <section id="recent-posts" class="pt-12 pb-6">
+          <h2 class="text-2xl font-semibold tracking-wide">
+            {t.home.recentPosts}
+          </h2>
+          <ul>
+            {recentPosts.slice(0, postsConfig.perIndex).map(data => (
+              <Card variant="h3" {...data} />
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <div class="my-8 text-center">
+      <LinkButton href={getRelativeLocaleUrl(locale, "posts")}>
+        {t.home.allPosts}
+        <IconArrowRight class="inline-block rtl:-rotate-180" />
+      </LinkButton>
+    </div>
+  </main>
+  <Footer />
+</Layout>
+
+<script>
+  document.addEventListener("astro:page-load", () => {
+    const indexLayout = (document.querySelector("#main-content") as HTMLElement)
+      ?.dataset;
+    const baseRoot = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+    if (indexLayout?.layout) {
+      sessionStorage.setItem("backUrl", indexLayout.homePath ?? baseRoot);
+    }
+  });
+</script>

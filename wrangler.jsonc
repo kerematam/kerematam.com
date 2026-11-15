@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kerematam-com",
+  "compatibility_date": "2026-11-09",
+  // Static site: no Worker script, Cloudflare serves dist/ directly.
+  "assets": {
+    "directory": "./dist",
+    // Serve dist/404.html with a 404 status for unknown paths.
+    "not_found_handling": "404-page",
+    // /posts/foo/index.html is served at /posts/foo/ (the default).
+    "html_handling": "auto-trailing-slash"
+  }
+}

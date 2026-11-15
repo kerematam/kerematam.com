@@ -1,0 +1,34 @@
+/* Register design tokens for Tailwind v4 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --font-app: var(--font-google-sans-code);
+}
+
+/* Light theme values: AstroPaper's predefined "Jadeite" scheme */
+:root,
+[data-theme="light"] {
+  --background: #f6fcf7;
+  --foreground: #060b07;
+  --accent: #027c6d;
+  --accent-foreground: #ffffff;
+  --muted: #c9e4e2;
+  --muted-foreground: #6b7280;
+  --border: #d4e1df;
+}
+
+/* Dark theme values: AstroPaper's predefined "Espresso" scheme */
+[data-theme="dark"] {
+  --background: #2f2f2f;
+  --foreground: #ebe5e1;
+  --accent: #ee781e;
+  --accent-foreground: #1a1a1a;
+  --muted: #4f4b44;
+  --muted-foreground: #ddbfa7;
+  --border: #6f5648;
+}

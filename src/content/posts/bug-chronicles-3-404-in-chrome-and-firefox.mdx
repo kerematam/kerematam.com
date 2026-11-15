@@ -1,0 +1,80 @@
+---
+title: "Bug Chronicles #3: a 404 in Chrome and Firefox, but not in Safari"
+description: A week and a half chasing a static file that returned 404 in Chrome and Firefox but loaded fine in Safari. It came down to HTTP/2 handling behind a Traefik TCP ingress.
+pubDatetime: 2025-09-06T21:33:00+03:00
+timezone: Europe/Istanbul
+tags:
+  - debugging
+  - http2
+  - networking
+---
+
+import demoVideo from "@/assets/posts/bug-chronicles-3-404-in-chrome-and-firefox/netlog-demo.mp4";
+import demoPoster from "@/assets/posts/bug-chronicles-3-404-in-chrome-and-firefox/netlog-demo-poster.jpg";
+
+We wasted nearly 1.5 weeks as a team chasing a bug where the server returned 404 on a static file in Chrome and Firefox, but worked fine on Safari.
+
+We couldn't reproduce it with curl, which led to endless blame ping-pong between devs and infra guys.
+
+## Reproducing it
+
+Repro steps were bizarre, and took so much time to find:
+
+- Toggle WiFi: it works
+- Toggle VPN: it works
+
+Basically, touching the network interface would "reset" something in the browser request flow.
+
+On some app versions, Chrome worked while Firefox still failed. No clue why.
+
+## What the browsers said
+
+LLMs were mostly useless with the raw logs:
+
+- Chrome: `(failed) net::ERR_BLOCKED_BY_ORB`
+- Firefox: `NS_ERROR_CORRUPTED_CONTENT`
+
+But once we managed to capture the weird repro patterns, Claude (with Opus 4.1) finally pointed us in the right direction.
+
+## The cause
+
+It was HTTP/2 handling between browsers and infra. Disabling HTTP/2 on the browser always fixed it. But finding which proxy or server layer was responsible also took so much time.
+
+Culprit, most probably: Traefik TCP Ingress. For some reason, it just couldn't handle this edge case. We still don't know the exact bug, but replacing Traefik solved it.
+
+The weirdest part: Traefik was supposedly doing TCP passthrough (layer 4). But HTTP/2 runs at the application layer, multiplexing multiple requests on a single TCP connection. Somewhere in that handoff, things went sideways apparently.
+
+## Seeing it in the browser's network log
+
+If you need to sniff and analyze browser messaging in detail (similar to Wireshark) to better diagnose an issue, you can use net-export and netlog-viewer of Chrome.
+
+Netlog view provides more detail than the dev tools tab. Using this, I've spotted the issue where an HTTP/2 request returned with an HTTP/1.1.
+
+<figure>
+  <video
+    controls
+    muted
+    playsinline
+    preload="metadata"
+    poster={demoPoster.src}
+    width="1004"
+    height="856"
+    aria-label="A 46 second screen recording without sound. Chrome's net-export page starts logging to a file, a message is sent in a web app, and the saved log is opened in netlog-viewer, filtered by host name, with one request's events shown in detail."
+    class="w-full rounded-md border"
+  >
+    <source src={demoVideo} type="video/mp4" />
+  </video>
+  <figcaption>Capturing a log with net-export and opening it in netlog-viewer. 46 seconds, no sound.</figcaption>
+</figure>
+
+I recorded the video with Screen Studio, a very easy to use tool for demos with a cool zoom-in feature.
+
+## Moral of the story
+
+Our infra team introduced Traefik ~1.5 months ago, but we only discovered the bug much later.
+
+If we had proper e2e tests with regression coverage, we could have caught this the moment it happened, blaming the right change immediately instead of wasting so much time.
+
+And since we got it so late: if we had o11y monitoring more aggressively, we probably could have caught it sooner as well.
+
+This post started as [a thread on X](https://x.com/kerematam/status/1964396554124411372) and [a follow-up post](https://x.com/kerematam/status/1964752649393234219).
