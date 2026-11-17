@@ -1,125 +1,158 @@
 ---
-title: What an accessible PDF needs from the developer who generates it
-description: What a screen reader needs from a generated PDF. Tags, real headings, tables that name their rows and columns, and alt text that says what a chart means, with before and after examples from Typfolio.
+title: Your PDF passes validation. Can a screen reader follow its tables?
+description: A generated PDF can pass PDF/UA validation and still leave a screen reader user lost in its tables. What VoiceOver, NVDA and JAWS say with and without row headers, why a validator cannot see that they are missing, and how we fixed it in Typfolio.
 pubDatetime: 2026-11-15T09:00:00Z
+modDatetime: 2026-11-16T09:00:00Z
 tags:
   - accessibility
   - pdf
   - typfolio
 ---
 
-import { Image } from "astro:assets";
 import BeforeAfter from "@/components/BeforeAfter.astro";
 import Side from "@/components/BeforeAfterSide.astro";
-import chart from "@/assets/posts/accessible-pdfs/chart-written.png";
-import panelCell from "@/assets/posts/accessible-pdfs/panel-cell.png";
-import tourPoster from "@/assets/posts/accessible-pdfs/tour-poster.jpg";
-import tourVideo from "@/assets/posts/accessible-pdfs/panel-tour.mp4";
+import TableTags from "@/components/TableTags.astro";
+import TableListen from "@/components/TableListen.astro";
+
+export const tree = kinds => [
+  "Table",
+  "  TR",
+  ['    TH  scope=Column  "Student"', kinds.student],
+  ['    TH  scope=Column  "Autumn"', kinds.autumn],
+  ['    TH  scope=Column  "Spring"', kinds.spring],
+  "  TR",
+  ['    TH  scope=Row  headers=[Student]  "Ada"', kinds.ada],
+  ['    TD  headers=[Autumn, Ada]  "9"', kinds.nine],
+  '    TD  headers=[Spring, Ada]  "8"',
+  "  TR",
+  ['    TH  scope=Row  headers=[Student]  "Ben"', kinds.ben],
+  '    TD  headers=[Autumn, Ben]  "7"',
+  '    TD  headers=[Spring, Ben]  "6"',
+].map(line => (Array.isArray(line) && !line[1] ? line[0] : line));
+
+export const headers = { student: "col", autumn: "col", spring: "col", ada: "row", ben: "row" };
 
 By **Kerem Atam**, HelioCampus
 
 > [!NOTE] About this post
 > At HelioCampus we build and maintain [Typfolio](https://github.com/HelioCampus/typfolio), an open-source library that turns Typst templates and data into PDFs in the browser. Accessibility has been part of it from the start: every PDF is tagged by default, PDF/UA is a compile option, and the dev tools warn about tables without headers.
 >
-> Our latest release goes a step further, into the part most generators get wrong: telling a screen reader which row and column each cell belongs to. This post is the reasoning behind that work, written so you can use it with any tool. The second half shows it in Typfolio.
+> Our latest release goes further into tables: telling a screen reader which row and column each cell belongs to. While working on it we measured something that matters to anyone who generates PDFs: **a table can be close to useless with a screen reader and still pass PDF/UA validation.** The first half of this post shows that, for any tool. The second half shows the fix in Typfolio.
 
-<p class="text-accent mt-10 mb-0 text-sm font-semibold tracking-widest uppercase [&+h2]:mt-2">Part one · any tool</p>
+## Three tables, one verdict
 
-## A PDF has two layers, and you only see one
+Here is a small table, as it looks on the page.
 
-The layer you see is ink on a page: glyphs at coordinates, lines, coloured boxes. Nothing in it says "this is a heading" or "these cells are a table". A screen reader given only that layer reads text in the order it was drawn and guesses the rest.
+<TableTags label="A table with the columns Student, Autumn and Spring, and two rows: Ada with 9 and 8, Ben with 7 and 6." />
 
-The second layer is the tag tree: an outline that says what each piece of content is. Heading, paragraph, list, table, row, header cell, figure. Assistive technology reads this layer. If you generate PDFs, producing it well is part of the job, in the same way semantic HTML is part of building a web page.
+We generated it as a PDF three ways, and did two things with each file. We ran it through [veraPDF](https://verapdf.org), the validator most teams put in CI, against PDF/UA-1. And we listened to it with three screen readers, moving down the "Autumn" column to the cell "9": VoiceOver in Preview on a Mac, and NVDA and JAWS in Adobe Acrobat Reader on Windows.
 
-## What to deliver
+| How the table was written | VoiceOver | NVDA | JAWS | veraPDF, PDF/UA-1 |
+| --- | --- | --- | --- | --- |
+| A bold first row, no header cells | "9" | "row 2, 9" | "9, Row 2 of 3" | Passes |
+| A header row | "9" | "row 2, 9" | "9, Row 2 of 3" | Passes |
+| A header row, and a header for each row | "Ada 9" | "Ada, row 2, 9" | "Ada, 9, Row 2 of 3" | Passes |
 
-This is the short list we hold any generated PDF to, ours included.
+All three pass, with no failed rule (veraPDF 1.30). But go down the column in the first two and every screen reader gives you a number and, at best, its position. Only the third says whose score it is, and all three screen readers say it.
 
-| Deliver | Because |
-| --- | --- |
-| A tagged PDF | Without tags there are no headings, tables or figures to navigate, only a stream of text |
-| A document title and a language | The title is the first thing announced; the language decides how every word is pronounced |
-| Real headings, in order | Headings are how a listener skims. Big bold text is not a heading, and a jump from level 1 to level 3 breaks the outline |
-| Tables with header cells | A cell's value is announced with the headers that label it. No header cells, no context |
-| Row headers, not only column headers | "Autumn, 9" is half the answer. "Autumn, Ada, 9" is the whole one |
-| Alt text on every figure that says what it means | A figure is read as its alt text and nothing else, including the labels drawn inside a chart |
-| Decoration marked as decoration | Page numbers, running headers and rules should be skipped, not read out on every page |
-| A reading order that matches the meaning | Columns, sidebars and footnotes are read in tag order, which is not always the order they sit on the page |
+Hear it for yourself, in VoiceOver's words. Pick a version, go down the "Autumn" column, then switch version and do it again.
 
-## Tables are where it goes wrong
+<TableListen />
 
-Tables are the hard part. A sighted reader finds a value by running an eye along a row and up a column. A listener cannot. When they land on a cell, the screen reader has to tell them where they are, and it can only do that from what the PDF says.
+**If a validator is your accessibility test, it is not catching this.** It is not a flaw in the validator. A validator checks that the tags in the file are well formed. It cannot know that "Ada" names a row, any more than an HTML validator can know that a `<td>` should have been a `<th scope="row">`. The file is valid. The table is still hard to use.
 
-Three things in the tags make that work:
+## The viewer matters as much as the file
 
-1. **Header cells are marked as headers.** A header cell is tagged TH and a data cell TD. A row that only looks like a header, because it is bold, is data.
-2. **Each header says what it labels.** A header carries a scope: its column, its row, or both. Without it, a header in the first column could be read as labelling everything below it.
-3. **Each cell lists its headers.** For tables with more than one level of header, every cell names the headers that apply to it, so nothing has to be inferred from position.
+A screen reader does not read the PDF. It reads what the app showing the PDF passes on, and apps differ a great deal. We opened the same three files in five viewers.
 
-The test is one question per data cell: which headers does the PDF say apply to it? For a score in a grades table, the answer should be the term and the student. If it is only the term, the table cannot be followed by ear.
+| Viewer | Screen reader | Read as a table? | Row header spoken? |
+| --- | --- | --- | --- |
+| Adobe Acrobat Reader | NVDA, JAWS | Yes | Yes |
+| Firefox | NVDA, JAWS | Yes | Yes |
+| Preview, Safari | VoiceOver | Yes | Yes |
+| Firefox | VoiceOver | No: VoiceOver finds no table | No |
+| Chrome | NVDA, VoiceOver | No: lines of text, such as "Ada 9 8", or nothing | No |
 
-## Charts are figures, and figures are their alt text
+So good tags are necessary and not sufficient. Without row headers in the file, no viewer can announce them. With them, the viewers that read the tags do. Test with the viewer and screen reader your readers use, not only the ones on your desk.
 
-A chart drawn into a PDF may contain real text: axis labels, values above bars. It is still one figure, and a screen reader reads the figure's alt text in place of all of it. So the alt text has to do the chart's job in words: what kind of chart, what stands out, how the result compares with any target.
+Tested in November 2026 with Acrobat Reader 26.2, Firefox 160, Chrome 157, NVDA 2026.2 and JAWS 2026 on Windows 11, and VoiceOver on macOS 26.
 
-<figure>
-  <Image
-    src={chart}
-    alt="Bar chart of students per level for Written communication. The largest group is Beginning (18). 17 reached Proficient or above, 1 short of the goal of 18, which a dashed line marks."
-    widths={[440, 880, 1248]}
-    sizes="440px"
-    style="max-width: min(100%, 440px); margin-inline: 0; background: #fff;"
-  />
-  <figcaption>The chart both alt texts below describe. The dashed line is the goal: 18 students at Proficient or above.</figcaption>
-</figure>
+## What a screen reader needs from a table
 
-<BeforeAfter>
-<Side kind="before">
+A sighted reader finds a value by running an eye along a row and up a column. A listener cannot. When they land on a cell, the screen reader has to say where they are, and it can only use what the tags say. If you have built an accessible HTML table, you already know the three ingredients. A tagged PDF has the same three.
 
-<p class="ba-label">Alt text</p>
+### 1. Header cells are marked as headers
 
-Students per level for Written communication: Exemplary 10, Proficient 7, Developing 4, Beginning 18.
+In HTML, `<th>` and `<td>`. In a PDF, the tags TH and TD. A row that only looks like a header, because it is bold, is tagged as data: that is the first row of the results above.
 
-</Side>
-<Side kind="after">
+<TableTags
+  marks={headers}
+  legend={[
+    { kind: "col", text: "header cell: TH" },
+    { kind: "row", text: "also a header cell: TH" },
+    { text: "data cell: TD" },
+  ]}
+  lines={tree(headers)}
+  label="The table with its header cells outlined: the top row in blue and the first cell of each row in green. The other cells are data cells."
+  caption="The table on the left, its tags in the PDF on the right. Blue and green cells are tagged TH; the rest are TD."
+/>
 
-<p class="ba-label">Alt text</p>
+### 2. Each header says what it labels
 
-Bar chart of students per level for Written communication. The largest group is Beginning (18). 17 reached Proficient or above, 1 short of the goal of 18. The full numbers are in the table "Students per level".
+In HTML, `scope="col"` and `scope="row"`. In a PDF, a Scope on the TH. Without it, "Ada" is a header, but nothing says it labels the cells beside it and not the cells below it.
 
-</Side>
-</BeforeAfter>
+<TableTags
+  marks={headers}
+  scope
+  legend={[
+    { kind: "col", text: "scope Column: labels the cells below it" },
+    { kind: "row", text: "scope Row: labels the cells beside it" },
+  ]}
+  lines={tree(headers)}
+  label="The same table. A dotted arrow runs down from each column header over its column, and across from each row header over its row."
+  caption="Each dotted arrow covers the cells a header labels. Column headers point down, row headers point across."
+/>
 
-- Describe what the chart means, not how it looks. "The bar touches the dashed line" tells a listener nothing; "one short of the goal" does.
-- Put the full numbers in a real table next to the chart and point to it from the alt text. The table is the accessible version of the chart.
+### 3. Each cell is tied to its headers
 
-## Check it like you would check a web page
+In HTML, the `headers` attribute. In a PDF, a Headers list on the cell, naming every header that applies to it. This is what the screen reader reads from when it announces a cell.
 
-You cannot review tags by looking at the PDF. Use three checks, in this order of cost:
+<TableTags
+  marks={{ autumn: "col", ada: "row", "ada-autumn": "cell" }}
+  links={[
+    ["ada-autumn", "autumn"],
+    ["ada-autumn", "ada"],
+  ]}
+  legend={[
+    { kind: "cell", text: "the cell being read" },
+    { kind: "col", text: "its column header" },
+    { kind: "row", text: "its row header" },
+  ]}
+  lines={tree({ autumn: "col", ada: "row", nine: "cell" })}
+  label="The same table with the cell 9 outlined in orange. One arrow goes from it up to the column header Autumn, another left to the row header Ada."
+  caption={'The cell "9" (orange) is tied to two headers: "Autumn" above it and "Ada" beside it.'}
+/>
 
-1. **Look at the tag tree** while you build the template. Most mistakes are obvious the moment you can see them.
-2. **Run a validator**, such as veraPDF against PDF/UA, in your tests. It confirms the tags are well formed. It does not judge whether they are true.
-3. **Listen to it** with a real screen reader before you ship. Only a person can say whether the reading order and the wording make sense.
+So the test for any table is one question per data cell: **which headers does the PDF tie it to?** For the "9" above, the right answer is "Autumn" and "Ada". If the answer is only "Autumn", a listener knows the term and not the student, and the table cannot be followed by ear.
 
-A PDF that declares PDF/UA and passes a validator can still be hard to use. Conformance is a floor.
+The speech quoted in this post comes from those runs. Each screen reader announces the header that changed: the column header when you move across, the row header when you move up or down. They word it differently, and a quote here joins the pieces one speaks with commas.
 
-<p class="text-accent mt-10 mb-0 text-sm font-semibold tracking-widest uppercase [&+h2]:mt-2">Part two · how we do it in Typfolio</p>
+<p class="text-accent mt-10 mb-0 text-sm font-semibold tracking-widest uppercase [&+h2]:mt-2">How we do it in Typfolio</p>
 
 ## What changed in Typfolio
 
-Typfolio compiles [Typst](https://typst.app) templates to PDF with WebAssembly, in the browser or in Node. It already tagged every PDF and marked the cells inside `table.header(...)` as column headers. The latest release adds two things.
+Typfolio compiles [Typst](https://typst.app) templates to PDF with WebAssembly, in the browser or in Node. It already tagged every PDF and marked the cells inside `table.header(...)` as column headers: the second row of the results above. What Typst cannot work out by itself is which cells name a row, or which header sits under another.
 
-- **Row headers and nested headers**\
-  `@typfolio/core` 0.5.0 turns on Typst's in-development `a11y-extras` feature by default. It adds `pdf.header-cell`, `pdf.data-cell` and `pdf.table-summary`.
-- **A way to see the tags**\
-  `@typfolio/dev-tools` 0.6.0 has a panel that shows the tag tree beside your page, marks the selected tag on the PDF, and lists the headers of any cell.
+`@typfolio/core` 0.5.0 turns on Typst's in-development `a11y-extras` feature by default. It adds three functions for saying exactly that: `pdf.header-cell`, `pdf.data-cell` and `pdf.table-summary`.
 
 ```bash
 npm install @typfolio/core@0.5.0 @typfolio/wasm@0.3.0
-npm install --save-dev @typfolio/dev-tools@0.6.0
 ```
 
-In each example below, the template is on top and what the PDF says is underneath. Changed lines are tinted. The trees come from real compiles, read back from the PDF.
+Each example below shows the table with the cell in question marked, then the template and the tags in the PDF. Changed lines are tinted. The tags come from real compiles, read back from the PDF. Under each table is what NVDA says in Acrobat Reader, before and after. JAWS gives the same picture there. Where VoiceOver or another viewer differs, we say so.
+
+> [!NOTE]
+> These three functions are still in development in Typst and can be renamed or removed. A template that uses them may need changes when Typfolio's pinned compiler is upgraded.
 
 ## The table fixes, in a template
 
@@ -131,6 +164,12 @@ Wrap the first cell of each row in `pdf.header-cell(scope: "row")`. And keep the
 
 <BeforeAfter>
 <Side kind="before">
+
+<TableTags variant="basic" marks={{ "autumn": "col", "ada-autumn": "cell" }} links={[["ada-autumn", "autumn"]]} label="The table with the cell 9 marked and one arrow from it, up to the column header Autumn." />
+
+<p class="ba-label">NVDA, moving down to "9"</p>
+
+**"row 2, 9"**
 
 <p class="ba-label">Template</p>
 
@@ -158,6 +197,12 @@ Table
 </Side>
 <Side kind="after">
 
+<TableTags variant="basic" marks={{ "autumn": "col", "ada": "row", "ada-autumn": "cell" }} links={[["ada-autumn", "autumn"], ["ada-autumn", "ada"]]} label="The table with the cell 9 marked and two arrows from it: up to the column header Autumn and left to the row header Ada." />
+
+<p class="ba-label">NVDA, moving down to "9"</p>
+
+**"Ada, row 2, 9"**
+
 <p class="ba-label">Template</p>
 
 ```text {3}
@@ -184,18 +229,24 @@ Table
 </Side>
 </BeforeAfter>
 
-**What the reader hears:** before, "Autumn, 9". After, "Autumn, Ada, 9".
+On the page the two tables are the same. Moving across a row, every screen reader names the column in both. Moving down the column is where they part: the first gives a number and its row, the second says whose score it is. JAWS and VoiceOver do the same.
 
-To line the two sides up, the "before" tree leaves out the THead and TBody groups Typst writes around the rows. A table that uses `pdf.header-cell` or `pdf.data-cell` is written without them.
+To line the two sides up, the "before" tags leave out the THead and TBody groups Typst writes around the rows. A table that uses `pdf.header-cell` or `pdf.data-cell` is written without them.
 
 <p class="text-muted-foreground mt-10 mb-0 border-t pt-5 text-sm font-semibold tracking-wider uppercase [&+h3]:mt-1">For grouped columns</p>
 
 ### Say which header sits under which
 
-When one header spans several columns, mark the headers below it with `pdf.header-cell(level: 2)`.
+When one header spans several columns, mark the headers below it with `pdf.header-cell(level: 2)`. The PDF then records that "Autumn" belongs to "Score", instead of tying both to the cell as equals.
 
 <BeforeAfter>
 <Side kind="before">
+
+<TableTags variant="nested" marks={{ "score": "col", "autumn": "col", "ada-autumn": "cell" }} links={[["ada-autumn", "autumn"], ["ada-autumn", "score"]]} label="A table with the header Score over the headers Autumn and Spring. The cell 9 has two arrows, one to Autumn and one to Score." />
+
+<p class="ba-label">NVDA, moving across to "9"</p>
+
+**"Score Autumn, column 2, 9"**
 
 <p class="ba-label">Template</p>
 
@@ -228,6 +279,12 @@ Table
 
 </Side>
 <Side kind="after">
+
+<TableTags variant="nested" marks={{ "score": "col", "autumn": "col", "ada-autumn": "cell" }} links={[["ada-autumn", "autumn"], ["autumn", "score"]]} label="The same table. The cell 9 has one arrow to Autumn, and Autumn has an arrow up to Score." />
+
+<p class="ba-label">NVDA, moving across to "9"</p>
+
+**"Autumn, column 2, 9"**
 
 <p class="ba-label">Template</p>
 
@@ -262,7 +319,7 @@ Table
 </Side>
 </BeforeAfter>
 
-**What the reader gets:** a chain. "9" belongs to "Autumn", and "Autumn" belongs to "Score".
+With the levels in place, NVDA reads "Score" once, when you reach "Autumn", instead of repeating it on every cell beneath. JAWS shortens the cell in the same way. Two viewers do not follow: VoiceOver with Preview says "Score, Autumn 9" for both versions, and Firefox reads the wrong header for this table with either one ("Spring" for a cell under "Autumn"). Check a table with spanning headers in the viewer your readers use.
 
 If the sub-headers fill a whole row, Typst does this without the new feature: add a second `table.header(level: 2, ...)`. Use `pdf.header-cell` when a cell such as "Student" spans both rows and must stay at the top level.
 
@@ -270,10 +327,16 @@ If the sub-headers fill a whole row, Typst does this without the new feature: ad
 
 ### Take a non-header out of the header
 
-The corner cell of a table with both kinds of header labels nothing, but inside `table.header` it is still tagged as one. `pdf.data-cell` turns it back into an ordinary cell.
+The corner cell of a table with both kinds of header labels nothing, but inside `table.header` it is still tagged as one. Every row header is then tied to a header with no text. `pdf.data-cell` turns the corner back into an ordinary cell.
 
 <BeforeAfter>
 <Side kind="before">
+
+<TableTags variant="corner" marks={{ "corner": "col", "ada": "cell" }} links={[["ada", "corner"]]} dashed={["corner"]} label="A table whose top left corner cell is empty. The corner is marked as a header, and the row header Ada has an arrow to it." />
+
+<p class="ba-label">NVDA, moving across to "Ada"</p>
+
+**A blank header, then "column 1, Ada"**
 
 <p class="ba-label">Template</p>
 
@@ -301,6 +364,12 @@ Table
 </Side>
 <Side kind="after">
 
+<TableTags variant="corner" marks={{ "ada": "cell" }} links={[]} label="The same table. The corner is not marked, and Ada has no arrow." />
+
+<p class="ba-label">NVDA, moving across to "Ada"</p>
+
+**"column 1, Ada"**
+
 <p class="ba-label">Template</p>
 
 ```text {2}
@@ -327,7 +396,7 @@ Table
 </Side>
 </BeforeAfter>
 
-**What the reader gets:** no blank header announced, and "Ada" no longer points at one.
+JAWS announces the same blank before "Ada", and drops it after the fix, in Acrobat and in Firefox. VoiceOver with Preview speaks "Ada" the same way in both versions.
 
 Be careful with it. If the cell you turn into data was the only header of its column, every cell below it is left with no header at all.
 
@@ -335,10 +404,14 @@ Be careful with it. If the cell you turn into data was the only header of its co
 
 ### Explain a complicated layout
 
-`pdf.table-summary` attaches one sentence to the table, read before its cells. Nothing is drawn on the page.
+`pdf.table-summary` attaches one sentence to the table, for a screen reader to give before the cells. Nothing is drawn on the page.
 
 <BeforeAfter>
 <Side kind="before">
+
+<p class="ba-label">NVDA, on reaching the table</p>
+
+**The table's size, and no summary**
 
 <p class="ba-label">Template</p>
 
@@ -359,6 +432,10 @@ Table
 
 </Side>
 <Side kind="after">
+
+<p class="ba-label">NVDA, on reaching the table</p>
+
+**"table with 2 rows and 3 columns, page 1, One row per student; the two score columns are terms."**
 
 <p class="ba-label">Template</p>
 
@@ -383,71 +460,29 @@ Table  summary="One row per student; the two score columns are terms."
 </Side>
 </BeforeAfter>
 
-**What the reader gets:** a sentence of orientation before the first cell.
+NVDA and JAWS read the summary out, in Acrobat and in Firefox. VoiceOver with Preview does not, so do not rely on it to carry anything a listener must know. Typst's documentation is clear that a summary explains layout, not content. For a simple table, leave it out.
 
-Typst's documentation is clear that a summary explains layout, not content. For a simple table, leave it out.
+## Catching it in your tests
 
-## Seeing the tags while you work
-
-This is the first of the three checks from part one. Mount the panel once in development and hand it each PDF you compile.
+A validator will not tell you a row header is missing, so ask the question yourself. `inspectPdf` from `@typfolio/dev-tools` reads the tags back from the PDF, including each cell's headers. Pick a cell from your sample data and assert what it is tied to:
 
 ```ts
-import * as pdfjs from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { mountStructureDevtools } from '@typfolio/dev-tools/panel';
-
-pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
-const panel = mountStructureDevtools({ pdfjs });
-
-// After each compile:
-panel.update({ bytes: result.bytes });
-```
-
-<figure>
-  <video
-    controls
-    muted
-    playsinline
-    preload="metadata"
-    poster={tourPoster.src}
-    width="1280"
-    height="760"
-    aria-label="A 29 second screen recording of the PDF tags panel, without sound."
-    class="w-full rounded-md border"
-  >
-    <source src={tourVideo} type="video/mp4" />
-  </video>
-  <figcaption>A 29 second tour, no sound. Selecting a heading, a row header and a cell in the tree marks each on the page. Moving over the page marks the tag under the pointer, and a click selects it in the tree.</figcaption>
-</figure>
-
-- **Select a data cell**\
-  The "Headers" line is the answer to the one question from part one. If the row's name is missing there, the row header is not marked.
-- **Scan the header cells**\
-  Each TH line shows its scope. Row names should say "scope Row".
-- **Click on the page**\
-  Clicking a cell or a chart selects its tag, so you can check a specific spot without hunting through the tree.
-- **Read the banner**\
-  It lists what a listener would trip over: a table with no header cells, a figure with no alt text, headings that skip a level.
-
-<figure>
-  <Image
-    src={panelCell}
-    alt="The PDF tags panel filling the page. On the left, the tag tree of a table: header cells marked scope Column and scope Row, with the cell 10 selected. In the middle, the PDF page with a box drawn around that cell. On the right, the selected cell's headers: Exemplary and Written communication."
-    widths={[736, 1472, 2208]}
-    sizes="(min-width: 48rem) 736px, 100vw"
-  />
-  <figcaption>The cell "10" is selected. Its headers are "Exemplary" from its column and "Written communication" from its row.</figcaption>
-</figure>
-
-## Putting it in your tests
-
-Compile as PDF/UA-1 and Typst itself refuses an image without alt text or a heading that skips a level. Then ask dev-tools for the problems neither Typst nor a validator reports, such as a table with no header cells.
-
-```ts
-import { checkStructure } from '@typfolio/dev-tools/pdf';
+import { inspectPdf } from '@typfolio/dev-tools/pdf';
 
 const { bytes } = await compiler.compile(report(sampleData), {
   pdf: { standards: ['ua-1'] },
 });
-assert.deepEqual((await checkStructure(bytes)).map(warning => warning.message), []);
+const { structure } = await inspectPdf(bytes);
+
+// Every tag in the document, and the text of each header cell by its id.
+const walk = element => [element, ...element.children.flatMap(walk)];
+const tags = structure.flatMap(page => page.elements).flatMap(walk);
+const text = new Map(tags.filter(tag => tag.id).map(tag => [tag.id, tag.text]));
+
+const cell = tags.find(tag => tag.role === 'TD' && tag.text === '9');
+assert.deepEqual(cell.headers.map(id => text.get(id)), ['Autumn', 'Ada']);
 ```
+
+Against the three files from the top of this post, that assertion fails for the first two and passes for the third. For the first case, a table with no header cells at all, `checkStructure` from the same package reports it without you naming a cell.
+
+`@typfolio/dev-tools` also has a panel that shows these tags beside your page while you work on a template. That is a post of its own.

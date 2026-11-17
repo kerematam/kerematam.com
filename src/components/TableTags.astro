@@ -1,0 +1,421 @@
+---
+/**
+ * A small table drawn as it looks on a page, with what a tagged PDF says about its cells marked on it: which cells
+ * are headers, what each header labels, and which headers a cell is tied to. Optionally the tag tree beside it,
+ * its lines in the same colours. See src/content/posts/accessible-pdfs.mdx for usage.
+ *
+ * Colours: blue is a column header, green a row header, orange the cell in question.
+ */
+type Kind = "col" | "row" | "cell";
+type Variant = "basic" | "nested" | "corner";
+type Line = string | [string, Kind];
+
+type Props = {
+  variant?: Variant;
+  /** Cells to outline, by id (see `tables` below). */
+  marks?: Record<string, Kind>;
+  /** A header cell drawn as marked, but dashed: a header that should not be one. */
+  dashed?: string[];
+  /** Arrows from a cell to a header it is tied to: `[from, to]`. */
+  links?: [string, string][];
+  /** Draw, for each marked header, an arrow over the cells it labels. */
+  scope?: boolean;
+  /** What the colours mean, listed under the table. Without a kind: an unmarked cell. */
+  legend?: { kind?: Kind; text: string }[];
+  /** The tag tree to show beside the table. */
+  lines?: Line[];
+  /** What the picture shows, for a screen reader. */
+  label: string;
+  caption?: string;
+};
+
+const {
+  variant = "basic",
+  marks = {},
+  dashed = [],
+  links = [],
+  scope = false,
+  legend = [],
+  lines,
+  label,
+  caption,
+} = Astro.props;
+
+type Cell = {
+  id: string;
+  text: string;
+  row: number;
+  col: number;
+  rows?: number;
+  cols?: number;
+  bold?: boolean;
+};
+const tables: Record<Variant, { rows: number; cells: Cell[] }> = {
+  basic: {
+    rows: 3,
+    cells: [
+      { id: "student", text: "Student", row: 0, col: 0 },
+      { id: "autumn", text: "Autumn", row: 0, col: 1 },
+      { id: "spring", text: "Spring", row: 0, col: 2 },
+      { id: "ada", text: "Ada", row: 1, col: 0 },
+      { id: "ada-autumn", text: "9", row: 1, col: 1 },
+      { id: "ada-spring", text: "8", row: 1, col: 2 },
+      { id: "ben", text: "Ben", row: 2, col: 0 },
+      { id: "ben-autumn", text: "7", row: 2, col: 1 },
+      { id: "ben-spring", text: "6", row: 2, col: 2 },
+    ],
+  },
+  nested: {
+    rows: 3,
+    cells: [
+      { id: "student", text: "Student", row: 0, col: 0, rows: 2 },
+      { id: "score", text: "Score", row: 0, col: 1, cols: 2 },
+      { id: "autumn", text: "Autumn", row: 1, col: 1 },
+      { id: "spring", text: "Spring", row: 1, col: 2 },
+      { id: "ada", text: "Ada", row: 2, col: 0 },
+      { id: "ada-autumn", text: "9", row: 2, col: 1 },
+      { id: "ada-spring", text: "8", row: 2, col: 2 },
+    ],
+  },
+  corner: {
+    rows: 2,
+    cells: [
+      { id: "corner", text: "", row: 0, col: 0 },
+      { id: "autumn", text: "Autumn", row: 0, col: 1 },
+      { id: "spring", text: "Spring", row: 0, col: 2 },
+      { id: "ada", text: "Ada", row: 1, col: 0 },
+      { id: "ada-autumn", text: "9", row: 1, col: 1 },
+      { id: "ada-spring", text: "8", row: 1, col: 2 },
+    ],
+  },
+};
+
+const colors: Record<Kind, string> = {
+  col: "#2563eb",
+  row: "#16a34a",
+  cell: "#ea580c",
+};
+const table = tables[variant];
+const widths = [130, 96, 96];
+const rowHeight = 38;
+const left = 6;
+const top = 6;
+const columnX = (col: number) =>
+  left + widths.slice(0, col).reduce((sum, width) => sum + width, 0);
+const box = (cell: Cell) => ({
+  x: columnX(cell.col),
+  y: top + cell.row * rowHeight,
+  width: widths
+    .slice(cell.col, cell.col + (cell.cols ?? 1))
+    .reduce((sum, width) => sum + width, 0),
+  height: rowHeight * (cell.rows ?? 1),
+});
+const byId = new Map(table.cells.map(cell => [cell.id, cell]));
+const cellBox = (id: string) => box(byId.get(id)!);
+const tableWidth = widths.reduce((sum, width) => sum + width, 0);
+const tableHeight = table.rows * rowHeight;
+const right = left + tableWidth;
+const bottom = top + tableHeight;
+const width = right + 6;
+const height = bottom + 6;
+
+// An arrow from a cell to a header it is tied to. It runs beside the cell's text, not through it: across, under the
+// text, to a header in the same row; otherwise straight up, right of the text, a little further right for each one.
+type Box = ReturnType<typeof box>;
+const ups = new Map<string, number>();
+const arrows = links.map(([fromId, toId]) => {
+  const from = cellBox(fromId);
+  const to = cellBox(toId);
+  const kind = marks[toId] ?? "cell";
+  const sameRow = to.y < from.y + from.height && from.y < to.y + to.height;
+  if (sameRow) {
+    const y = from.y + from.height / 2 + 12;
+    return {
+      kind,
+      start: { x: from.x + 30, y },
+      end: { x: to.x + to.width - 26, y },
+    };
+  }
+  const nth = ups.get(fromId) ?? 0;
+  ups.set(fromId, nth + 1);
+  const x = Math.min(
+    Math.max(from.x + from.width / 2 + 10 + nth * 18, to.x + 8),
+    to.x + to.width - 8
+  );
+  return {
+    kind,
+    start: { x, y: from.y + from.height / 2 },
+    end: { x, y: to.y + to.height - 7 },
+  };
+});
+// What a header labels: a line over the cells below it, or beside it.
+type Flow = { kind: Kind; x1: number; y1: number; x2: number; y2: number };
+const flows: Flow[] = !scope
+  ? []
+  : Object.entries(marks).flatMap(([id, kind]): Flow[] => {
+      if (kind === "cell") return [];
+      const b = cellBox(id);
+      return kind === "col"
+        ? [
+            {
+              kind,
+              x1: b.x + b.width - 13,
+              y1: b.y + b.height - 4,
+              x2: b.x + b.width - 13,
+              y2: bottom - 7,
+            },
+          ]
+        : [
+            {
+              kind,
+              x1: b.x + b.width - 4,
+              y1: b.y + b.height - 8,
+              x2: right - 7,
+              y2: b.y + b.height - 8,
+            },
+          ];
+    });
+const uid = Math.random().toString(36).slice(2, 8);
+const kinds: Kind[] = ["col", "row", "cell"];
+---
+
+<figure class="table-tags" data-tree={lines ? "true" : "false"}>
+  <div class="table-tags-body">
+    <div class="tt-table">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        role="img"
+        aria-label={label}
+      >
+        <defs>
+          {
+            kinds.map(kind => (
+              <marker
+                id={`tt-${uid}-${kind}`}
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M1 1.5 L9 5 L1 8.5 z" fill={colors[kind]} />
+              </marker>
+            ))
+          }
+        </defs>
+        {
+          table.cells.map(cell => {
+            const b = box(cell);
+            return (
+              <>
+                <rect
+                  class="tt-cell"
+                  x={b.x}
+                  y={b.y}
+                  width={b.width}
+                  height={b.height}
+                />
+                <text
+                  class="tt-text"
+                  x={b.x + 10}
+                  y={b.y + b.height / 2}
+                  dominant-baseline="central"
+                >
+                  {cell.text}
+                </text>
+              </>
+            );
+          })
+        }
+        {
+          Object.entries(marks).map(([id, kind]) => {
+            const b = cellBox(id);
+            return (
+              <rect
+                x={b.x + 2}
+                y={b.y + 2}
+                width={b.width - 4}
+                height={b.height - 4}
+                rx="3"
+                fill={colors[kind]}
+                fill-opacity="0.13"
+                stroke={colors[kind]}
+                stroke-width="2"
+                stroke-dasharray={dashed.includes(id) ? "5 4" : undefined}
+              />
+            );
+          })
+        }
+        {
+          flows.map(flow => (
+            <line
+              x1={flow.x1}
+              y1={flow.y1}
+              x2={flow.x2}
+              y2={flow.y2}
+              stroke={colors[flow.kind]}
+              stroke-width="2"
+              stroke-dasharray="2 4"
+              stroke-linecap="round"
+              marker-end={`url(#tt-${uid}-${flow.kind})`}
+            />
+          ))
+        }
+        {
+          arrows.map(arrow => (
+            <line
+              x1={arrow.start.x}
+              y1={arrow.start.y}
+              x2={arrow.end.x}
+              y2={arrow.end.y}
+              stroke={colors[arrow.kind]}
+              stroke-width="2"
+              stroke-linecap="round"
+              marker-end={`url(#tt-${uid}-${arrow.kind})`}
+            />
+          ))
+        }
+      </svg>
+      {
+        legend.length > 0 ? (
+          <ul class="tt-legend">
+            {legend.map(item => (
+              <li>
+                <span class="tt-key" data-kind={item.kind ?? "none"} />
+                {item.text}
+              </li>
+            ))}
+          </ul>
+        ) : null
+      }
+    </div>
+    {
+      lines ? (
+        <div
+          class="tt-tree"
+          role="group"
+          aria-label="The table's tags in the PDF"
+        >
+          {lines.map(line =>
+            typeof line === "string" ? (
+              <span>{line}</span>
+            ) : (
+              <span data-kind={line[1]}>{line[0]}</span>
+            )
+          )}
+        </div>
+      ) : null
+    }
+  </div>
+  {caption ? <figcaption>{caption}</figcaption> : null}
+</figure>
+
+<style is:global>
+  .table-tags {
+    margin-block: 1.5rem;
+  }
+  .table-tags-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  @media (min-width: 48rem) {
+    .table-tags[data-tree="true"] .table-tags-body {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    }
+  }
+  .table-tags svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    font-family: inherit;
+  }
+  .table-tags .tt-cell {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .table-tags .tt-text {
+    fill: var(--foreground);
+    font-size: 15px;
+  }
+  .table-tags .tt-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .table-tags .tt-legend li {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    margin: 0;
+    padding: 0;
+  }
+  .table-tags .tt-key {
+    flex: none;
+    width: 0.8rem;
+    height: 0.8rem;
+    border: 2px solid var(--border);
+    border-radius: 3px;
+    translate: 0 0.1rem;
+  }
+  .table-tags .tt-key[data-kind="col"] {
+    border-color: #2563eb;
+    background: color-mix(in oklab, #2563eb 14%, transparent);
+  }
+  .table-tags .tt-key[data-kind="row"] {
+    border-color: #16a34a;
+    background: color-mix(in oklab, #16a34a 14%, transparent);
+  }
+  .table-tags .tt-key[data-kind="cell"] {
+    border-color: #ea580c;
+    background: color-mix(in oklab, #ea580c 15%, transparent);
+  }
+  .table-tags .tt-tree {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0.625rem 0;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    font-family: var(--font-app, ui-monospace, monospace);
+    font-size: 0.72rem;
+    line-height: 1.7;
+  }
+  .table-tags .tt-tree span {
+    padding-inline: 0.75rem;
+    border-left: 3px solid transparent;
+    white-space: pre;
+  }
+  .table-tags .tt-tree span[data-kind="col"] {
+    border-left-color: #2563eb;
+    background: color-mix(in oklab, #2563eb 14%, transparent);
+  }
+  .table-tags .tt-tree span[data-kind="row"] {
+    border-left-color: #16a34a;
+    background: color-mix(in oklab, #16a34a 14%, transparent);
+  }
+  .table-tags .tt-tree span[data-kind="cell"] {
+    border-left-color: #ea580c;
+    background: color-mix(in oklab, #ea580c 15%, transparent);
+  }
+  /* Inside a before/after side: no room to spare. */
+  .before-after .table-tags {
+    margin: 0.5rem 0.75rem 0;
+  }
+  .before-after .ba-heard {
+    margin: 0.25rem 0.75rem 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+</style>

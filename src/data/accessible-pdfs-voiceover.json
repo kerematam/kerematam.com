@@ -1,0 +1,137 @@
+{
+ "bold-row": {
+  "0,0": {
+   "enter": "In table No selection. column 1 of 3 Student",
+   "left": "column 1 of 3 Student",
+   "up": "Student"
+  },
+  "0,1": {
+   "right": "column 2 of 3 Autumn",
+   "left": "column 2 of 3 Autumn",
+   "up": "Autumn"
+  },
+  "0,2": {
+   "right": "column 3 of 3 Spring",
+   "up": "Spring"
+  },
+  "1,0": {
+   "down": "Ada",
+   "left": "column 1 of 3 Ada",
+   "up": "Ada"
+  },
+  "1,1": {
+   "right": "column 2 of 3 9",
+   "left": "column 2 of 3 9",
+   "down": "9",
+   "up": "9"
+  },
+  "1,2": {
+   "right": "column 3 of 3 8",
+   "down": "8",
+   "up": "8"
+  },
+  "2,0": {
+   "down": "Ben",
+   "left": "column 1 of 3 Ben"
+  },
+  "2,1": {
+   "right": "column 2 of 3 7",
+   "left": "column 2 of 3 7",
+   "down": "7"
+  },
+  "2,2": {
+   "right": "column 3 of 3 6",
+   "down": "6"
+  }
+ },
+ "column-headers-only": {
+  "0,0": {
+   "enter": "In table No selection. Student column 1, row 1",
+   "left": "Student column 1, row 1",
+   "up": "Student"
+  },
+  "0,1": {
+   "right": "Autumn column 2, row 1",
+   "left": "Autumn column 2, row 1",
+   "up": "Autumn"
+  },
+  "0,2": {
+   "right": "Spring column 3, row 1",
+   "up": "Spring"
+  },
+  "1,0": {
+   "down": "Ada",
+   "left": "Student Ada",
+   "up": "Ada"
+  },
+  "1,1": {
+   "right": "Autumn 9",
+   "left": "Autumn 9",
+   "down": "9",
+   "up": "9"
+  },
+  "1,2": {
+   "right": "Spring 8",
+   "down": "8",
+   "up": "8"
+  },
+  "2,0": {
+   "down": "Ben",
+   "left": "Student Ben"
+  },
+  "2,1": {
+   "right": "Autumn 7",
+   "left": "Autumn 7",
+   "down": "7"
+  },
+  "2,2": {
+   "right": "Spring 6",
+   "down": "6"
+  }
+ },
+ "row-headers": {
+  "0,0": {
+   "enter": "In table No selection. Student column 1, row 1",
+   "left": "Student column 1, row 1",
+   "up": "Student"
+  },
+  "0,1": {
+   "right": "Autumn column 2, row 1",
+   "left": "Autumn column 2, row 1",
+   "up": "Autumn"
+  },
+  "0,2": {
+   "right": "Spring column 3, row 1",
+   "up": "Spring"
+  },
+  "1,0": {
+   "down": "Ada",
+   "left": "Student Ada",
+   "up": "Ada"
+  },
+  "1,1": {
+   "right": "Autumn 9",
+   "left": "Autumn 9",
+   "down": "Ada 9",
+   "up": "Ada 9"
+  },
+  "1,2": {
+   "right": "Spring 8",
+   "down": "Ada 8",
+   "up": "Ada 8"
+  },
+  "2,0": {
+   "down": "Ben",
+   "left": "Student Ben"
+  },
+  "2,1": {
+   "right": "Autumn 7",
+   "left": "Autumn 7",
+   "down": "Ben 7"
+  },
+  "2,2": {
+   "right": "Spring 6",
+   "down": "Ben 6"
+  }
+ }
+}
