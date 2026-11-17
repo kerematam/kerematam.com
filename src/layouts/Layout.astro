@@ -35,8 +35,22 @@ const rssHref = getAssetPath("rss.xml");
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/svg+xml" href={getAssetPath("favicon.svg")} />
-    <link rel="icon" href={getAssetPath("favicon.ico")} />
+    {
+      /* A Turkish tea saucer. Sources and the other candidates
+         are in snapshots/favicon-options (not in git). */
+    }
+    <link
+      rel="icon"
+      href={getAssetPath("favicon.ico")}
+      sizes="16x16 32x32 48x48"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      href={getAssetPath("favicon.png")}
+      sizes="96x96"
+    />
+    <link rel="apple-touch-icon" href={getAssetPath("apple-touch-icon.png")} />
     <link rel="canonical" href={canonicalURL} />
     <meta name="generator" content={Astro.generator} />
 

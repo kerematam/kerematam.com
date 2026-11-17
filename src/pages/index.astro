@@ -9,8 +9,9 @@ import Footer from "@/components/Footer.astro";
 import Socials from "@/components/Socials.astro";
 import Card from "@/components/Card.astro";
 import LinkButton from "@/components/LinkButton.astro";
+import TeaGlass from "@/components/TeaGlass.astro";
 import { getSortedPosts } from "@/utils/getSortedPosts";
-import { keepTogether } from "@/utils/keepTogether";
+import { phrases } from "@/utils/keepTogether";
 import { useTranslations } from "@/i18n";
 import config from "@/config";
 
@@ -28,22 +29,30 @@ const homePath = getRelativeLocaleUrl(locale, "");
 // TODO(kerem): the GitHub profile link is still missing. Add it to `socials`
 // in astro-paper.config.ts and it will show in the row of icons below.
 
-// Open-source work listed under the intro. Keep each summary to a few words.
+// Open-source work listed under the intro. Keep each summary to a few words,
+// in two parts: beside the tea glass a summary only wraps between them, so
+// a line never breaks mid-phrase.
 const projects = [
   {
     name: "Typfolio",
     url: "https://typfolio.kerematam.com/",
-    summary: "accessible PDFs in the browser, from Typst templates and data",
+    summary: [
+      "accessible PDFs in the browser,",
+      "from Typst templates and data",
+    ],
   },
   {
     name: "SahneJS",
     url: "https://sahne-js.kerematam.com/",
-    summary: "test local code on real sites by intercepting browser requests",
+    summary: [
+      "test local code on real sites",
+      "by intercepting browser requests",
+    ],
   },
 ];
 
-// Control where the intro may wrap; see keepTogether.
-const intro = keepTogether(site.description);
+// The intro wraps only after a comma or a full stop; see phrases.
+const intro = phrases(site.description);
 ---
 
 <Layout>
@@ -54,42 +63,82 @@ const intro = keepTogether(site.description);
     data-home-path={homePath}
     class="app-layout my-1"
   >
-    <section id="hero" class="border-border border-b pt-8 pb-6">
-      <p class="text-balance">{intro}</p>
-      <ul role="list" aria-label="Projects" class="mt-3 space-y-1">
-        {
-          projects.map(({ name, url, summary }) => (
-            <li>
-              <LinkButton
-                class="hover:text-accent underline decoration-dashed underline-offset-4"
-                href={url}
-              >
-                {name}
-              </LinkButton>
-              : {summary}
-            </li>
-          ))
-        }
-      </ul>
+    <section
+      id="hero"
+      class="border-border border-b pt-8 pb-6 md:flex md:items-center"
+    >
+      {
+        /* Beside the glass the text column is 46ch wide: the intro's longest
+           line ("Software developer. Currently at HelioCampus,", 45
+           characters) plus one. Without that spare character the line does
+           not fit in the stand-in font shown while the web font loads, and
+           the page jumps when it arrives. Change it with the intro. The glass
+           is centred in the space to its right. */
+      }
+      <div class="md:w-[46ch] md:shrink-0">
+        <p class="text-balance">
+          {
+            intro.map(({ text, long }, i) => (
+              <Fragment>
+                {i > 0 && " "}
+                <span
+                  class={
+                    // A long phrase fits on one line from 26rem (416px) up.
+                    long ? "min-[26rem]:whitespace-nowrap" : "whitespace-nowrap"
+                  }
+                >
+                  {text}
+                </span>
+              </Fragment>
+            ))
+          }
+        </p>
+        <ul role="list" aria-label="Projects" class="mt-3 space-y-1">
+          {
+            projects.map(({ name, url, summary }) => (
+              <li>
+                <LinkButton
+                  class="hover:text-accent underline decoration-dashed underline-offset-4"
+                  href={url}
+                >
+                  {name}
+                </LinkButton>
+                : <span class="md:whitespace-nowrap">{summary[0]}</span>{" "}
+                <span class="md:whitespace-nowrap">{summary[1]}</span>
+              </li>
+            ))
+          }
+        </ul>
 
-      <div class="mt-4 flex max-sm:flex-col sm:items-center">
-        <div class="me-2 mb-1 whitespace-nowrap sm:mb-0">
-          {t.home.socialLinks}:
+        <div class="mt-4 flex max-sm:flex-col sm:items-center">
+          <div class="me-2 mb-1 whitespace-nowrap sm:mb-0">
+            {t.home.socialLinks}:
+          </div>
+          <div class="flex flex-wrap items-center gap-1">
+            {socials.length > 0 && <Socials />}
+            <LinkButton
+              href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}rss.xml`}
+              target="_blank"
+              class="p-2 hover:rotate-6 sm:p-1"
+              title="RSS Feed"
+            >
+              <IconRss
+                class="stroke-accent inline-block size-6 scale-110 stroke-2 rtl:-rotate-90"
+              />
+              <span class="sr-only">RSS Feed</span>
+            </LinkButton>
+          </div>
         </div>
-        <div class="flex flex-wrap items-center gap-1">
-          {socials.length > 0 && <Socials />}
-          <LinkButton
-            href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}rss.xml`}
-            target="_blank"
-            class="p-2 hover:rotate-6 sm:p-1"
-            title="RSS Feed"
-          >
-            <IconRss
-              class="stroke-accent inline-block size-6 scale-110 stroke-2 rtl:-rotate-90"
-            />
-            <span class="sr-only">RSS Feed</span>
-          </LinkButton>
-        </div>
+      </div>
+
+      {
+        /* Right of the intro from 48rem (768px) up; under it on narrower
+           screens, where there is no room. */
+      }
+      <div
+        class="mt-10 [--tea-size:8rem] md:mt-0 md:flex-1 md:translate-y-3 md:[--tea-size:12rem]"
+      >
+        <TeaGlass sizes="(min-width: 48rem) 12rem, 8rem" />
       </div>
     </section>
 

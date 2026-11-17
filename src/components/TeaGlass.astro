@@ -1,0 +1,127 @@
+---
+/**
+ * A Turkish tea glass with steam rising from it, for the home page. Adapted
+ * from the ChaiTerm landing page (same glass and steam artwork, same steam
+ * strength, and the same fade over each loop).
+ *
+ * Decoration only: hidden from screen readers. The steam is a short looping
+ * video with a transparent background, in two formats because no single one
+ * keeps transparency everywhere: HEVC in a .mov for Safari, VP9 WebM for
+ * Chrome and Firefox (neither can open the .mov, so they skip to the WebM).
+ * Visitors who ask for reduced motion get the still glass: no steam is
+ * downloaded and nothing moves.
+ */
+import { Image } from "astro:assets";
+import teaGlass from "@/assets/home/tea-glass.png";
+import steamMov from "@/assets/home/steam.mov?url";
+import steamWebm from "@/assets/home/steam.webm?url";
+
+type Props = {
+  /** How wide the glass is shown, for picking the image size. Match the
+   * page's --tea-size. */
+  sizes?: string;
+};
+
+const { sizes = "8rem" } = Astro.props;
+---
+
+<div class="tea" aria-hidden="true">
+  <video
+    class="tea-steam"
+    muted
+    loop
+    playsinline
+    disablepictureinpicture
+    preload="none"
+    width="192"
+    height="180"
+  >
+    <source src={steamMov} type='video/quicktime; codecs="hvc1"' />
+    <source src={steamWebm} type="video/webm" />
+  </video>
+  <Image
+    class="tea-glass"
+    src={teaGlass}
+    alt=""
+    width={192}
+    widths={[128, 192, 256, 384, 479]}
+    sizes={sizes}
+  />
+</div>
+
+<style>
+  /*
+   * The glass is square; its size is set by the page (--tea-size). The steam
+   * is placed over it, rising from the rim, and takes no space of its own:
+   * it may drift over the text and the menu above, and lets clicks through.
+   */
+  .tea {
+    position: relative;
+    width: var(--tea-size, 8rem);
+    margin-inline: auto;
+    animation: tea-float 8s ease-in-out infinite;
+  }
+  .tea-glass {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .tea-steam {
+    /* How strong the steam is at the start of each loop; the script fades
+       it towards nothing by the end, as ChaiTerm does. White steam reads on
+       the dark theme; on the light one it is darkened instead, and fainter. */
+    --steam-strength: 0.045;
+    position: absolute;
+    /* Percentages of the glass: the steam's base sits just inside the rim. */
+    top: -41%;
+    left: 50%;
+    z-index: 1;
+    width: 69%;
+    height: auto;
+    translate: -50% 0;
+    pointer-events: none;
+    filter: brightness(0);
+    opacity: calc(var(--steam-strength) * var(--steam-fade, 1));
+    /* Smooths the steps between the script's updates. */
+    transition: opacity 0.3s linear;
+  }
+  :global(html[data-theme="dark"]) .tea-steam {
+    --steam-strength: 0.15;
+    filter: none;
+  }
+  @keyframes tea-float {
+    50% {
+      translate: 0 -6px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tea {
+      animation: none;
+    }
+    .tea-steam {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  function startSteam() {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    for (const video of document.querySelectorAll<HTMLVideoElement>(
+      ".tea-steam"
+    )) {
+      // Fade the steam out over each loop, so the jump back to the start
+      // is not seen.
+      video.addEventListener("timeupdate", () => {
+        if (!video.duration) return;
+        const fade = 1 - video.currentTime / video.duration;
+        video.style.setProperty("--steam-fade", fade.toFixed(3));
+      });
+      video.preload = "auto";
+      // Muted video may autoplay; if a browser still refuses, the still glass
+      // is fine on its own.
+      video.play().catch(() => {});
+    }
+  }
+  document.addEventListener("astro:page-load", startSteam);
+</script>
