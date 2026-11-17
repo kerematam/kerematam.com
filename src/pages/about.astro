@@ -1,11 +1,13 @@
 ---
 import { getEntry, render } from "astro:content";
+import { Image } from "astro:assets";
 import Layout from "@/layouts/Layout.astro";
 import Header from "@/components/Header.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import Main from "@/components/Main.astro";
 import Footer from "@/components/Footer.astro";
 import config from "@/config";
+import photo from "@/assets/about/kerem-atam.jpg";
 
 const about = await getEntry("pages", "about");
 
@@ -29,6 +31,17 @@ const { Content } = await render(about);
   <Breadcrumb />
 
   <Main pageTitle={about.data.title} class="app-prose">
+    {/* A round photo, floated beside the title and opening paragraphs. */}
+    <Image
+      slot="beside-title"
+      src={photo}
+      alt="Kerem Atam"
+      width={144}
+      widths={[96, 144, 192, 288, 375]}
+      sizes="(min-width: 40rem) 9rem, 6rem"
+      loading="eager"
+      class="not-prose border-border float-end ms-5 mb-3 size-24 rounded-full border sm:size-36"
+    />
     <Content />
   </Main>
 
