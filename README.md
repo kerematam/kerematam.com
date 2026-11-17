@@ -73,6 +73,7 @@ Comments carried over from the old blog (`archivedComments`, above) are separate
 
 Everything is in `astro-paper.config.ts`:
 
+- `site.title`: the site's name, "Kerem Atam's Blog". It ends every page title and appears in the header, the feed and the social images. The home page also tells search engines that "Kerem Atam" is another name for the site. `site.author` is the person: the author of each post and the name in the social link labels.
 - `site.description`: the one-liner on the home page, the meta description and the generated social image.
 - `site.timezone`: an IANA name. It decides which calendar day a post's date shows.
 - `socials`: icon links in the hero and footer. Icon names must match a file in `src/assets/icons/socials/`.

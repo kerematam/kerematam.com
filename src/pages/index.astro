@@ -51,11 +51,28 @@ const projects = [
   },
 ];
 
+// Tells search engines the site's name, and that "Kerem Atam" (the name it
+// had before) is another name for it. Google reads this from the home page
+// only.
+const websiteData = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: site.title,
+  alternateName: [site.author, new URL(site.url).hostname],
+  url: new URL("/", site.url).href,
+}).replace(/</g, "\\u003c");
+
 // The intro wraps only after a comma or a full stop; see phrases.
 const intro = phrases(site.description);
 ---
 
 <Layout>
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={websiteData}
+  />
   <Header titleAsHeading />
   <main
     id="main-content"

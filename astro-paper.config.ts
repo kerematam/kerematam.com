@@ -3,7 +3,9 @@ import { defineAstroPaperConfig } from "./src/types/config";
 export default defineAstroPaperConfig({
   site: {
     url: "https://kerematam.com",
-    title: "Kerem Atam",
+    // The site's name: page titles ("Post | Kerem Atam's Blog"), the header,
+    // the feed and social images. `author` below stays the person.
+    title: "Kerem Atam's Blog",
     // TODO(kerem): drafted from your notes on 15 Nov 2026; confirm the wording
     // before release. This one line is the home page intro, the meta
     // description, the RSS description and the text on the social image.
