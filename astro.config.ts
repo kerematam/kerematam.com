@@ -67,6 +67,12 @@ export default defineConfig({
       ],
     },
   },
+  build: {
+    // Put each page's CSS in the page itself instead of a separate file the
+    // browser must fetch before it can show anything. The site's CSS is
+    // about 11 KB, so this saves a round trip on a slow phone connection.
+    inlineStylesheets: "always",
+  },
   vite: {
     plugins: [tailwindcss()],
   },
