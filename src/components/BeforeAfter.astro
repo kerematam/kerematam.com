@@ -24,6 +24,45 @@
     }
   }
 
+  /*
+   * Side by side, the two sides share rows: each label, quote and code block
+   * starts at the same height as its partner on the other side, even when
+   * the block above it is longer on one side. This needs both sides to have
+   * the same parts in the same order, which every comparison so far does.
+   */
+  @supports (grid-template-rows: subgrid) {
+    @media (min-width: 48rem) {
+      .before-after {
+        row-gap: 0;
+      }
+      .before-after .ba-side {
+        display: grid;
+        /* More rows than any side uses; the unused ones have no height. */
+        grid-row: 1 / span 12;
+        grid-template-rows: subgrid;
+        /* Without this a long code line widens the side past its box. */
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 0;
+      }
+      .before-after .ba-before {
+        grid-column: 1;
+      }
+      .before-after .ba-after {
+        grid-column: 2;
+      }
+      /* Code blocks in a shared row end level too. The post page wraps each
+         block in a div for its copy button. */
+      .before-after .ba-side > div:has(> pre) {
+        display: flex;
+        flex-direction: column;
+      }
+      .before-after .ba-side > div:has(> pre) > pre {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+  }
+
   .before-after .ba-side {
     min-width: 0;
     border: 1px solid var(--border);
