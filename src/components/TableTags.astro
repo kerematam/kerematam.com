@@ -388,6 +388,8 @@ const kinds: Kind[] = ["col", "row", "cell"];
     overflow-x: auto;
     border: 1px solid var(--border);
     border-radius: 0.375rem;
+    /* The article's own text colour does not follow dark mode. */
+    color: var(--foreground);
     font-family: var(--font-app, ui-monospace, monospace);
     font-size: 0.72rem;
     line-height: 1.7;

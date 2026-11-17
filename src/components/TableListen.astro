@@ -230,7 +230,8 @@ const versions = [
   }
   .table-listen button {
     font: inherit;
-    color: inherit;
+    /* Not inherit: the article's own text colour does not follow dark mode. */
+    color: var(--foreground);
     cursor: pointer;
   }
   .table-listen .tl-switch {
