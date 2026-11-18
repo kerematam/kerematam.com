@@ -12,7 +12,7 @@ tags:
 import BeforeAfter from "@/components/BeforeAfter.astro";
 import Side from "@/components/BeforeAfterSide.astro";
 import TableTags from "@/components/TableTags.astro";
-import TableListen from "@/components/TableListen.astro";
+import TableSteps from "@/components/TableSteps.astro";
 
 export const tree = kinds => [
   "Table",
@@ -55,9 +55,9 @@ We generated it as a PDF three ways, and did two things with each file. We ran i
 
 All three pass, with no failed rule (veraPDF 1.30). But go down the column in the first two and every screen reader gives you a number and, at best, its position. Only the third says whose score it is, and all three screen readers say it.
 
-Hear it for yourself, in VoiceOver's words. Pick a version, go down the "Autumn" column, then switch version and do it again.
+Step through it, in VoiceOver's words. Each step shows the move, the tags in the PDF, and what was spoken.
 
-<TableListen />
+<TableSteps />
 
 **If a validator is your accessibility test, it is not catching this.** It is not a flaw in the validator. A validator checks that the tags in the file are well formed. It cannot know that "Ada" names a row, any more than an HTML validator can know that a `<td>` should have been a `<th scope="row">`. The file is valid. The table is still hard to use.
 

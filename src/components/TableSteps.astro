@@ -1,0 +1,836 @@
+---
+/**
+ * The table from the post, stepped through like slides: three ways of tagging it, the move made, the tags in the
+ * PDF, and what VoiceOver said. The phrases are recordings, not rules: `src/data/accessible-pdfs-voiceover.json`
+ * has what VoiceOver with Preview spoke on arriving at each cell from each side, for each of the three PDFs. The
+ * tag trees are the ones in those PDFs, from the Table element down. See src/content/posts/accessible-pdfs.mdx.
+ */
+import speech from "@/data/accessible-pdfs-voiceover.json";
+
+const grid = [
+  ["Student", "Autumn", "Spring"],
+  ["Ada", "9", "8"],
+  ["Ben", "7", "6"],
+];
+const versions = [
+  "1 · No header cells",
+  "2 · Header row",
+  "3 · Header row + row headers",
+];
+---
+
+<figure class="table-steps" data-speech={JSON.stringify(speech)}>
+  <div class="ts-pills" role="group" aria-label="Version of the table">
+    {
+      versions.map((label, index) => (
+        <button type="button" data-version={index}>
+          {label}
+        </button>
+      ))
+    }
+  </div>
+  <p class="ts-caption" aria-live="polite"></p>
+
+  <div class="ts-body">
+    <div class="ts-panel ts-tree">
+      <p class="ts-label">Tags in the PDF</p>
+      <div class="ts-lines"></div>
+    </div>
+
+    <div class="ts-panel ts-tablebox">
+      <p class="ts-label">The table</p>
+      <div class="ts-stage">
+        <div class="ts-grid">
+          {
+            grid.map((row, r) =>
+              row.map((text, c) => (
+                <div class="ts-cell" data-cell={`${r},${c}`}>
+                  {text}
+                </div>
+              ))
+            )
+          }
+          <div class="ts-cursor"></div>
+        </div>
+        <div class="ts-pad" aria-hidden="true">
+          <span data-key="up">↑</span>
+          <span data-key="left">←</span>
+          <span data-key="down">↓</span>
+          <span data-key="right">→</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ts-panel ts-said">
+      <p class="ts-label">VoiceOver says</p>
+      <p class="ts-phrase" aria-live="polite"></p>
+      <p class="ts-verdict">
+        <span class="ts-mark" aria-hidden="true"></span>
+        <span class="ts-note"></span>
+      </p>
+    </div>
+
+    <div class="ts-end">
+      <p class="ts-end-a">
+        <span aria-hidden="true">⚠</span> All three versions pass automated PDF/UA
+        validation.
+      </p>
+      <p class="ts-end-b">Two of them left the listener guessing.</p>
+      <p class="ts-end-c">
+        By the standard all three are valid: automated checks confirm the tags
+        are well formed, not that the right cells are headers. Listen to your
+        tables with a screen reader.
+      </p>
+    </div>
+  </div>
+
+  <div class="ts-controls">
+    <button type="button" data-go="first">Start</button>
+    <button type="button" data-go="prev">← Back</button>
+    <span class="ts-count"></span>
+    <button type="button" data-go="next" class="ts-next">Next →</button>
+  </div>
+
+  <figcaption>
+    Step through with Next and Back, or the left and right arrow keys once the
+    figure has focus. Every phrase is a recording of VoiceOver reading that PDF
+    in Preview on macOS 26.6.
+  </figcaption>
+</figure>
+
+<script>
+  type Speech = Record<string, Record<string, Record<string, string>>>;
+  type Cell = [number, number];
+  type Step = {
+    v: number;
+    at: Cell;
+    caption?: string;
+    key?: string;
+    ok?: boolean;
+    note?: string;
+    blame?: Cell;
+    end?: boolean;
+  };
+
+  const grid = [
+    ["Student", "Autumn", "Spring"],
+    ["Ada", "9", "8"],
+    ["Ben", "7", "6"],
+  ];
+  const ids = ["bold-row", "column-headers-only", "row-headers"];
+  // Kind of each cell per version: d = TD, c = TH with Scope Column, r = TH with Scope Row.
+  const kinds = [
+    [
+      ["d", "d", "d"],
+      ["d", "d", "d"],
+      ["d", "d", "d"],
+    ],
+    [
+      ["c", "c", "c"],
+      ["d", "d", "d"],
+      ["d", "d", "d"],
+    ],
+    [
+      ["c", "c", "c"],
+      ["r", "d", "d"],
+      ["r", "d", "d"],
+    ],
+  ];
+  // Tree lines above each table row, as [indent, tag]. The second PDF really has THead and TBody; the others do not.
+  const wrappers: [number, string][][][] = [
+    [
+      [
+        [0, "Table"],
+        [1, "TR"],
+      ],
+      [[1, "TR"]],
+      [[1, "TR"]],
+    ],
+    [
+      [
+        [0, "Table"],
+        [1, "THead"],
+        [2, "TR"],
+      ],
+      [
+        [1, "TBody"],
+        [2, "TR"],
+      ],
+      [[2, "TR"]],
+    ],
+    [
+      [
+        [0, "Table"],
+        [1, "TR"],
+      ],
+      [[1, "TR"]],
+      [[1, "TR"]],
+    ],
+  ];
+  const cellIndent = [2, 3, 2];
+
+  const noColumn = "No column name";
+  const column = "Column name spoken";
+  const whose = "Whose score is it?";
+  const rowName = "Row name spoken";
+  const captions = [
+    "A bold first row, but no header cells",
+    "Fix 1: tag the first row as headers",
+    "Same file. Now read down a column",
+    "Fix 2: tag the first column as row headers",
+  ];
+  const steps: Step[] = [
+    { v: 0, at: [1, 0], caption: captions[0] },
+    {
+      v: 0,
+      at: [1, 1],
+      key: "right",
+      ok: false,
+      note: noColumn,
+      blame: [0, 1],
+      caption: captions[0],
+    },
+    {
+      v: 0,
+      at: [1, 2],
+      key: "right",
+      ok: false,
+      note: noColumn,
+      blame: [0, 2],
+      caption: captions[0],
+    },
+    { v: 1, at: [1, 0], caption: captions[1] },
+    {
+      v: 1,
+      at: [1, 1],
+      key: "right",
+      ok: true,
+      note: column,
+      caption: captions[1],
+    },
+    {
+      v: 1,
+      at: [1, 2],
+      key: "right",
+      ok: true,
+      note: column,
+      caption: captions[1],
+    },
+    { v: 1, at: [0, 1], caption: captions[2] },
+    {
+      v: 1,
+      at: [1, 1],
+      key: "down",
+      ok: false,
+      note: whose,
+      blame: [1, 0],
+      caption: captions[2],
+    },
+    {
+      v: 1,
+      at: [2, 1],
+      key: "down",
+      ok: false,
+      note: whose,
+      blame: [2, 0],
+      caption: captions[2],
+    },
+    { v: 2, at: [0, 1], caption: captions[3] },
+    {
+      v: 2,
+      at: [1, 1],
+      key: "down",
+      ok: true,
+      note: rowName,
+      caption: captions[3],
+    },
+    {
+      v: 2,
+      at: [2, 1],
+      key: "down",
+      ok: true,
+      note: rowName,
+      caption: captions[3],
+    },
+    { v: 2, at: [2, 1], end: true },
+  ];
+
+  function setUp(figure: HTMLElement) {
+    if (figure.dataset.ready === "true") return;
+    figure.dataset.ready = "true";
+    const speech: Speech = JSON.parse(figure.dataset.speech ?? "{}");
+    const find = <T extends HTMLElement>(selector: string) =>
+      figure.querySelector<T>(selector)!;
+    const all = <T extends HTMLElement>(selector: string) => [
+      ...figure.querySelectorAll<T>(selector),
+    ];
+    const lines = find(".ts-lines");
+    const cursor = find(".ts-cursor");
+    const phrase = find(".ts-phrase");
+    const verdict = find(".ts-verdict");
+    let index = 0;
+
+    const cellAt = (cell: Cell) => find(`.ts-cell[data-cell="${cell.join()}"]`);
+    const place = () => {
+      const cell = cellAt(steps[index].at);
+      cursor.style.left = `${cell.offsetLeft}px`;
+      cursor.style.top = `${cell.offsetTop}px`;
+      cursor.style.width = `${cell.offsetWidth}px`;
+      cursor.style.height = `${cell.offsetHeight}px`;
+    };
+
+    const show = (to: number) => {
+      const before = steps[index];
+      index = Math.max(0, Math.min(steps.length - 1, to));
+      const step = steps[index];
+      const kind = kinds[step.v];
+      const [r, c] = step.at;
+      const blame = step.blame?.join() ?? "";
+      // Headers of the cursor's cell, as the PDF lists them: its column header, and its row header when it has one.
+      const headerCol = kind[0][c] === "c" && r > 0 ? `0,${c}` : "";
+      const headerRow = kind[r][0] === "r" && c > 0 ? `${r},0` : "";
+      const state = (i: number, j: number) => {
+        const id = `${i},${j}`;
+        return {
+          kind: kind[i][j],
+          link: id === headerCol ? "col" : id === headerRow ? "row" : "",
+          blame: id === blame ? "true" : "false",
+          current: i === r && j === c ? "true" : "false",
+          changed:
+            step.v !== before.v &&
+            step.v > 0 &&
+            kind[i][j] !== kinds[step.v - 1][i][j]
+              ? "true"
+              : "false",
+        };
+      };
+
+      figure.dataset.version = String(step.v);
+      figure.dataset.end = step.end ? "true" : "false";
+      for (const cell of all(".ts-cell")) {
+        const [i, j] = cell.dataset.cell!.split(",").map(Number);
+        const s = state(i, j);
+        cell.dataset.kind = s.kind;
+        cell.dataset.link = s.link;
+        cell.dataset.blame = s.blame;
+      }
+
+      lines.replaceChildren();
+      const line = (indent: number, tag: string) => {
+        const element = document.createElement("div");
+        element.className = "ts-line";
+        element.style.marginLeft = `${indent * 0.9}rem`;
+        const name = document.createElement("span");
+        name.className = "ts-tag";
+        name.textContent = tag;
+        element.append(name);
+        lines.append(element);
+        return element;
+      };
+      const span = (className: string, text: string) => {
+        const element = document.createElement("span");
+        element.className = className;
+        element.textContent = text;
+        return element;
+      };
+      grid.forEach((row, i) => {
+        for (const [indent, tag] of wrappers[step.v][i]) line(indent, tag);
+        row.forEach((text, j) => {
+          const s = state(i, j);
+          const element = line(
+            cellIndent[step.v],
+            s.kind === "d" ? "TD" : "TH"
+          );
+          Object.assign(element.dataset, s);
+          element.append(span("ts-text", text));
+          if (s.kind !== "d")
+            element.append(
+              span("ts-attr", s.kind === "c" ? "Scope: Column" : "Scope: Row")
+            );
+          if (s.blame === "true")
+            element.append(span("ts-why", "TD, not a header"));
+        });
+      });
+
+      for (const pill of all<HTMLButtonElement>(".ts-pills button"))
+        pill.setAttribute(
+          "aria-pressed",
+          Number(pill.dataset.version) === step.v ? "true" : "false"
+        );
+      for (const key of all(".ts-pad span"))
+        key.dataset.on = key.dataset.key === step.key ? "true" : "false";
+      find(".ts-caption").textContent = step.caption ?? "";
+      find(".ts-count").textContent = `${index + 1} / ${steps.length}`;
+      find<HTMLButtonElement>('[data-go="prev"]').disabled = index === 0;
+      find<HTMLButtonElement>('[data-go="first"]').disabled = index === 0;
+      find<HTMLButtonElement>('[data-go="next"]').disabled =
+        index === steps.length - 1;
+
+      const said = step.key
+        ? (speech[ids[step.v]]?.[step.at.join()]?.[step.key] ?? "")
+        : "";
+      phrase.textContent = said ? `“${said}”` : "";
+      verdict.dataset.ok = said ? String(step.ok) : "";
+      find(".ts-mark").textContent = said ? (step.ok ? "✓" : "✕") : "";
+      find(".ts-note").textContent = said ? (step.note ?? "") : "";
+      // Restart the entrance animations of the phrase and the verdict.
+      for (const element of [phrase, verdict]) {
+        element.classList.remove("ts-in");
+        void element.offsetWidth;
+        if (said) element.classList.add("ts-in");
+      }
+      // The cursor slides after a key press and jumps otherwise.
+      cursor.dataset.slide = step.key ? "true" : "false";
+      place();
+    };
+
+    for (const button of all<HTMLButtonElement>(".ts-controls button"))
+      button.addEventListener("click", () => {
+        const go = button.dataset.go;
+        show(go === "first" ? 0 : go === "prev" ? index - 1 : index + 1);
+      });
+    for (const pill of all<HTMLButtonElement>(".ts-pills button"))
+      pill.addEventListener("click", () =>
+        show(steps.findIndex(step => step.v === Number(pill.dataset.version)))
+      );
+    figure.addEventListener("keydown", event => {
+      if (event.key === "ArrowRight") show(index + 1);
+      else if (event.key === "ArrowLeft") show(index - 1);
+      else return;
+      event.preventDefault();
+    });
+    new ResizeObserver(() => {
+      cursor.dataset.slide = "false";
+      place();
+    }).observe(find(".ts-grid"));
+    show(0);
+  }
+
+  const setUpAll = () =>
+    document.querySelectorAll<HTMLElement>(".table-steps").forEach(setUp);
+  setUpAll();
+  document.addEventListener("astro:page-load", setUpAll);
+</script>
+
+<style is:global>
+  .table-steps {
+    /* Dark enough for 4.5:1 contrast on their own tinted backgrounds. */
+    --ts-col: #1d4ed8;
+    --ts-row: #166534;
+    --ts-muted: #4b5563;
+    --ts-cell: #ea580c;
+    --ts-bad: #dc2626;
+    --ts-good: #15803d;
+    --ts-warn: #b45309;
+    margin-block: 1.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    /* Not inherit: the article's own text colour does not follow dark mode. */
+    color: var(--foreground);
+  }
+  [data-theme="dark"] .table-steps {
+    --ts-muted: var(--muted-foreground);
+    --ts-col: #7cb8ff;
+    --ts-row: #5fe08f;
+    --ts-cell: #fb923c;
+    --ts-bad: #ff8a8a;
+    --ts-good: #5fe08f;
+    --ts-warn: #fbbf24;
+  }
+  .table-steps p {
+    margin: 0;
+  }
+  .table-steps button {
+    font: inherit;
+    color: var(--foreground);
+    cursor: pointer;
+  }
+  .table-steps .ts-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+  .table-steps .ts-pills button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    font-size: 0.8rem;
+  }
+  .table-steps .ts-pills button[aria-pressed="true"] {
+    border-color: var(--foreground);
+    background: var(--foreground);
+    color: var(--background);
+  }
+  .table-steps .ts-caption {
+    min-height: 1.6em;
+    margin-top: 0.75rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .table-steps .ts-body {
+    position: relative;
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+    grid-template-areas: "tree table" "tree said";
+    grid-template-rows: auto 1fr;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .table-steps .ts-panel {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    min-width: 0;
+  }
+  .table-steps .ts-label {
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .table-steps .ts-tree {
+    grid-area: tree;
+  }
+  .table-steps .ts-lines {
+    /* Fifteen lines, the tallest of the three trees, so the figure keeps its height. */
+    min-height: 24.4rem;
+    margin-top: 0.4rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+  }
+  .table-steps .ts-line {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    height: 1.625rem;
+    padding: 0 0.35rem;
+    border: 1.5px solid transparent;
+    border-radius: 0.3rem;
+    white-space: nowrap;
+  }
+  .table-steps .ts-tag {
+    color: var(--ts-muted);
+    font-weight: 700;
+  }
+  .table-steps .ts-line[data-kind="c"] .ts-tag {
+    color: var(--ts-col);
+  }
+  .table-steps .ts-line[data-kind="r"] .ts-tag {
+    color: var(--ts-row);
+  }
+  .table-steps .ts-attr {
+    color: var(--ts-muted);
+    font-size: 0.68rem;
+  }
+  .table-steps .ts-line[data-link="col"] {
+    border-color: var(--ts-col);
+    background: color-mix(in oklab, var(--ts-col) 15%, transparent);
+  }
+  .table-steps .ts-line[data-link="row"] {
+    border-color: var(--ts-row);
+    background: color-mix(in oklab, var(--ts-row) 15%, transparent);
+  }
+  .table-steps .ts-line[data-current="true"] {
+    border-color: var(--ts-cell);
+    background: color-mix(in oklab, var(--ts-cell) 18%, transparent);
+  }
+  .table-steps .ts-line[data-blame="true"] {
+    border-style: dashed;
+    border-color: var(--ts-bad);
+    animation: ts-late 0.3s 0.6s backwards;
+  }
+  .table-steps .ts-line[data-changed="true"]:not([data-current="true"]) {
+    animation: ts-changed 1.6s;
+  }
+  .table-steps .ts-why {
+    margin-left: auto;
+    color: var(--ts-bad);
+    font-family: var(--font-app), sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+
+  .table-steps .ts-tablebox {
+    grid-area: table;
+  }
+  .table-steps .ts-stage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    margin-top: 0.5rem;
+  }
+  .table-steps .ts-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 6rem 5rem 5rem;
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+  }
+  .table-steps .ts-cell {
+    padding: 0.5rem 0.6rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-size: 1rem;
+    line-height: 1.4;
+    transition:
+      color 0.3s,
+      background-color 0.3s;
+  }
+  /* The first row is bold only in the version that has nothing else to mark it. */
+  .table-steps[data-version="0"] .ts-cell:nth-child(-n + 3) {
+    font-weight: 700;
+  }
+  .table-steps .ts-cell[data-kind="c"] {
+    background: color-mix(in oklab, var(--ts-col) 9%, transparent);
+    color: var(--ts-col);
+    font-weight: 700;
+  }
+  .table-steps .ts-cell[data-kind="r"] {
+    background: color-mix(in oklab, var(--ts-row) 9%, transparent);
+    color: var(--ts-row);
+    font-weight: 700;
+  }
+  .table-steps .ts-cell[data-link="col"] {
+    box-shadow: inset 0 0 0 2px var(--ts-col);
+  }
+  .table-steps .ts-cell[data-link="row"] {
+    box-shadow: inset 0 0 0 2px var(--ts-row);
+  }
+  .table-steps .ts-cell[data-blame="true"] {
+    background: color-mix(in oklab, var(--ts-bad) 10%, transparent);
+    box-shadow: inset 0 0 0 2px var(--ts-bad);
+    animation: ts-late 0.3s 0.6s backwards;
+  }
+  .table-steps .ts-cursor {
+    position: absolute;
+    border: 3px solid var(--ts-cell);
+    border-radius: 3px;
+    background: color-mix(in oklab, var(--ts-cell) 15%, transparent);
+    pointer-events: none;
+  }
+  .table-steps .ts-cursor[data-slide="true"] {
+    transition:
+      left 0.25s ease-out,
+      top 0.25s ease-out;
+  }
+  .table-steps .ts-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1.9rem);
+    grid-template-areas: ". up ." "left down right";
+    gap: 0.2rem;
+  }
+  .table-steps .ts-pad span {
+    display: grid;
+    place-items: center;
+    height: 1.9rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+  .table-steps .ts-pad [data-key="up"] {
+    grid-area: up;
+  }
+  .table-steps .ts-pad [data-key="left"] {
+    grid-area: left;
+  }
+  .table-steps .ts-pad [data-key="down"] {
+    grid-area: down;
+  }
+  .table-steps .ts-pad [data-key="right"] {
+    grid-area: right;
+  }
+  .table-steps .ts-pad span[data-on="true"] {
+    border-color: var(--ts-cell);
+    background: var(--ts-cell);
+    color: #fff;
+  }
+
+  .table-steps .ts-said {
+    grid-area: said;
+    min-height: 8.5rem;
+  }
+  .table-steps .ts-phrase {
+    min-height: 1.3em;
+    margin-top: 0.4rem;
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  .table-steps .ts-verdict {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .table-steps .ts-verdict[data-ok="true"] {
+    color: var(--ts-good);
+  }
+  .table-steps .ts-verdict[data-ok="false"] {
+    color: var(--ts-bad);
+  }
+  .table-steps .ts-mark {
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    color: var(--background);
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .table-steps .ts-verdict[data-ok="true"] .ts-mark {
+    background: var(--ts-good);
+  }
+  .table-steps .ts-verdict[data-ok="false"] .ts-mark {
+    background: var(--ts-bad);
+  }
+  .table-steps .ts-verdict[data-ok=""] .ts-mark {
+    display: none;
+  }
+  .table-steps .ts-phrase.ts-in {
+    animation: ts-rise 0.25s ease-out;
+  }
+  .table-steps .ts-verdict.ts-in {
+    animation: ts-late 0.3s 0.6s backwards;
+  }
+
+  .table-steps .ts-end {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--background);
+    text-align: center;
+    animation: ts-late 0.4s;
+  }
+  .table-steps[data-end="true"] .ts-end {
+    display: flex;
+  }
+  .table-steps .ts-end-a {
+    color: var(--ts-warn);
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+  .table-steps .ts-end-b {
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .table-steps .ts-end-c {
+    max-width: 34rem;
+    margin-inline: auto;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .table-steps .ts-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .table-steps .ts-controls button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: transparent;
+    font-size: 0.9rem;
+  }
+  .table-steps .ts-controls button:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+  .table-steps .ts-controls button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .table-steps .ts-controls .ts-next {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-foreground);
+    font-weight: 700;
+  }
+  .table-steps .ts-count {
+    min-width: 3.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .table-steps figcaption {
+    margin-top: 0.75rem;
+  }
+
+  @keyframes ts-rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.4rem);
+    }
+  }
+  @keyframes ts-late {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes ts-changed {
+    0%,
+    100% {
+      background: transparent;
+    }
+    25%,
+    65% {
+      background: color-mix(in oklab, var(--foreground) 16%, transparent);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .table-steps * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+  /* Narrow screens: the table and the speech first, the tree under them. */
+  @media (max-width: 640px) {
+    .table-steps .ts-body {
+      grid-template-columns: 1fr;
+      grid-template-areas: "table" "said" "tree";
+      grid-template-rows: auto;
+    }
+    .table-steps .ts-phrase {
+      font-size: 1.6rem;
+    }
+    /* The stacked figure is taller than the screen, so the buttons stay in reach under the table. */
+    .table-steps .ts-controls {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      margin-inline: -1rem;
+      padding: 0.6rem 1rem;
+      border-top: 1px solid var(--border);
+      background: var(--background);
+    }
+    .table-steps .ts-end-b {
+      font-size: 1.5rem;
+    }
+  }
+</style>
