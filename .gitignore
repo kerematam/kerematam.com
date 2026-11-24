@@ -37,3 +37,6 @@ compose.override.yaml
 
 # local before/after snapshots of the built site
 /snapshots/
+
+# recorded videos
+videos/*/out/
