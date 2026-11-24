@@ -1,0 +1,29 @@
+---
+/**
+ * Cloudflare Web Analytics: page views, referrers, countries, devices and
+ * page speed, without cookies. Added by hand rather than with Cloudflare's
+ * automatic setup, which would put the script on every subdomain of the
+ * zone (typfolio, sahne-js) too.
+ *
+ * The token is a public site identifier from the Cloudflare dashboard
+ * (Analytics & Logs > Web Analytics > kerematam.com), not a secret. With no
+ * token, or in `npm run dev`, nothing is added to the page.
+ *
+ * Pages reached through the site's client-side navigation are counted too:
+ * the script follows history.pushState on its own.
+ */
+const token: string = "";
+
+const show = import.meta.env.PROD && token !== "";
+---
+
+{
+  show && (
+    <script
+      is:inline
+      defer
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon={JSON.stringify({ token })}
+    />
+  )
+}
