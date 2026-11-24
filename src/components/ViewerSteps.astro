@@ -1,0 +1,829 @@
+---
+/**
+ * One tagged table, stepped through like slides: the page, its tags, and what three viewers build from those tags
+ * for a screen reader. The tags never change; the viewer does. Every viewer state is a reading of that viewer's
+ * tree for the same file (a header row and a row header per body row), taken on macOS in November 2026. See
+ * src/content/posts/between-pdf-tags-and-speech.mdx.
+ */
+const grid = [
+  ["Student", "Autumn", "Spring"],
+  ["Ada", "9", "8"],
+  ["Ben", "7", "6"],
+];
+const viewers = ["Firefox", "Chrome", "Safari"];
+---
+
+<figure class="viewer-steps">
+  <div class="vs-top">
+    <div class="vs-pills" role="group" aria-label="Viewer">
+      {
+        viewers.map(name => (
+          <button type="button" data-viewer={name.toLowerCase()}>
+            {name}
+          </button>
+        ))
+      }
+    </div>
+    <div class="vs-controls">
+      <button type="button" data-go="first">Start</button>
+      <button type="button" data-go="prev">← Back</button>
+      <span class="vs-count"></span>
+      <button type="button" data-go="next" class="vs-next">Next →</button>
+    </div>
+  </div>
+  <p class="vs-caption" aria-live="polite"></p>
+
+  <div class="vs-body">
+    <div class="vs-panel vs-tree">
+      <p class="vs-label">Tags in the PDF</p>
+      <div class="vs-lines"></div>
+    </div>
+
+    <div class="vs-panel vs-pagebox">
+      <p class="vs-label">The page</p>
+      <div class="vs-grid vs-page">
+        {
+          grid.map((row, r) =>
+            row.map((text, c) => (
+              <div class="vs-cell" data-cell={`${r},${c}`}>
+                {text}
+              </div>
+            ))
+          )
+        }
+        <div class="vs-cursor"></div>
+      </div>
+    </div>
+
+    <div class="vs-panel vs-built">
+      <p class="vs-label vs-built-label"></p>
+      <div class="vs-out" aria-live="polite"></div>
+    </div>
+
+    <div class="vs-end">
+      <p class="vs-end-a">
+        <span aria-hidden="true">⚠</span> The tags did not change once.
+      </p>
+      <p class="vs-end-b">Three viewers built three different tables.</p>
+      <p class="vs-end-c">
+        A validator reads the tags and nothing else. A screen reader gets what
+        the viewer builds, and each viewer builds its own. Safari is not the
+        safe one either: it drops the table's summary, as the sections below
+        show.
+      </p>
+    </div>
+  </div>
+
+  <figcaption>
+    Step through with Next and Back, or the left and right arrow keys once the
+    figure has focus. Each viewer's panel is what that viewer handed over for
+    this file on macOS 26. Firefox's phrase for the cell was recorded after the
+    table was given a size, which a later section explains.
+  </figcaption>
+</figure>
+
+<script>
+  type Viewer = "firefox" | "chrome" | "safari";
+  type Step = {
+    caption?: string;
+    /** Whether the tags are lit yet. */
+    tags: boolean;
+    viewer?: Viewer;
+    /** What the step points at: the cell 9, or the table as a whole. */
+    focus: "cell" | "table";
+    end?: boolean;
+  };
+  type Built = {
+    label: string;
+    /** No table: the runs of text the viewer hands over instead. */
+    runs?: string[];
+    size?: string;
+    sized?: boolean;
+    /** Headers of the cell 9, as [text, kind]. */
+    headers?: [string, "col" | "row" | "added"][];
+    said?: string;
+    more: string;
+  };
+
+  const grid = [
+    ["Student", "Autumn", "Spring"],
+    ["Ada", "9", "8"],
+    ["Ben", "7", "6"],
+  ];
+  // c = TH with Scope Column, r = TH with Scope Row, d = TD.
+  const kinds = [
+    ["c", "c", "c"],
+    ["r", "d", "d"],
+    ["r", "d", "d"],
+  ];
+  const roleNames: Record<string, string> = {
+    c: "column header",
+    r: "row header",
+    d: "cell",
+  };
+  const at = "1,1";
+  const links: Record<string, string> = { "0,1": "col", "1,0": "row" };
+
+  const steps: Step[] = [
+    {
+      tags: false,
+      focus: "cell",
+      caption: "One valid PDF. Follow the cell 9",
+    },
+    {
+      tags: true,
+      focus: "cell",
+      caption: "In the tags, 9 names two headers",
+    },
+    {
+      tags: true,
+      focus: "cell",
+      viewer: "firefox",
+      caption: "Firefox: the same cell has three",
+    },
+    {
+      tags: true,
+      focus: "table",
+      viewer: "firefox",
+      caption: "Firefox: and the table has no size",
+    },
+    {
+      tags: true,
+      focus: "cell",
+      viewer: "chrome",
+      caption: "Chrome: there is no table",
+    },
+    {
+      tags: true,
+      focus: "cell",
+      viewer: "safari",
+      caption: "Safari: the table as it was written",
+    },
+    { tags: true, focus: "cell", viewer: "safari", end: true },
+  ];
+
+  const built = (step: Step): Built | undefined => {
+    if (step.viewer === "firefox" && step.focus === "cell")
+      return {
+        label: "What Firefox builds",
+        size: "0 × 0",
+        headers: [
+          ["Autumn", "col"],
+          ["Ada", "row"],
+          ["Student", "added"],
+        ],
+        said: "Ada Autumn Ada Student 9",
+        more: "Student is Ada’s header. Firefox passes it on to every cell in Ada’s row.",
+      };
+    if (step.viewer === "firefox")
+      return {
+        label: "What Firefox builds",
+        size: "0 × 0",
+        sized: false,
+        said: "Table not found",
+        more: "Rows, columns and headers are all there. The table, its rows and its cells measure 0 × 0, and VoiceOver treats that as no table.",
+      };
+    if (step.viewer === "chrome")
+      return {
+        label: "What Chrome builds",
+        runs: ["Student Autumn Spring", "Ada 9 8", "Ben 7 6"],
+        more: "One run of text per row. The cell 9 is three characters into a line.",
+      };
+    if (step.viewer === "safari")
+      return {
+        label: "What Safari builds",
+        size: "162 × 65",
+        headers: [
+          ["Autumn", "col"],
+          ["Ada", "row"],
+        ],
+        more: "A table with a size, and nothing added.",
+      };
+    return undefined;
+  };
+
+  function setUp(figure: HTMLElement) {
+    if (figure.dataset.ready === "true") return;
+    figure.dataset.ready = "true";
+    const find = <T extends HTMLElement>(selector: string) =>
+      figure.querySelector<T>(selector)!;
+    const all = <T extends HTMLElement>(selector: string) => [
+      ...figure.querySelectorAll<T>(selector),
+    ];
+    const make = (tag: string, className: string, text = "") => {
+      const element = document.createElement(tag);
+      element.className = className;
+      element.textContent = text;
+      return element;
+    };
+    const lines = find(".vs-lines");
+    const cursor = find(".vs-cursor");
+    const out = find(".vs-out");
+    const caption = find(".vs-caption");
+    let index = 0;
+
+    const place = () => {
+      const page = find(".vs-page");
+      const cell = find(`.vs-page .vs-cell[data-cell="${at}"]`);
+      const whole = steps[index].focus === "table";
+      cursor.style.left = `${whole ? 0 : cell.offsetLeft}px`;
+      cursor.style.top = `${whole ? 0 : cell.offsetTop}px`;
+      cursor.style.width = `${whole ? page.clientWidth : cell.offsetWidth}px`;
+      cursor.style.height = `${whole ? page.clientHeight : cell.offsetHeight}px`;
+    };
+
+    const drawTags = (step: Step) => {
+      lines.replaceChildren();
+      const line = (indent: number, tag: string) => {
+        const element = make("div", "vs-line");
+        element.style.marginLeft = `${indent * 0.9}rem`;
+        element.append(make("span", "vs-tag", tag));
+        lines.append(element);
+        return element;
+      };
+      const table = line(0, "Table");
+      if (step.tags && step.focus === "table") table.dataset.current = "true";
+      grid.forEach((row, i) => {
+        line(1, "TR");
+        row.forEach((text, j) => {
+          const id = `${i},${j}`;
+          const kind = kinds[i][j];
+          const element = line(2, kind === "d" ? "TD" : "TH");
+          element.dataset.kind = kind;
+          element.append(make("span", "vs-text", text));
+          if (kind !== "d")
+            element.append(
+              make(
+                "span",
+                "vs-attr",
+                kind === "c" ? "Scope: Column" : "Scope: Row"
+              )
+            );
+          if (!step.tags || step.focus === "table") return;
+          if (id === at) {
+            element.dataset.current = "true";
+            element.append(make("span", "vs-attr", "Headers: Autumn, Ada"));
+          } else if (links[id]) element.dataset.link = links[id];
+        });
+      });
+    };
+
+    const drawBuilt = (step: Step) => {
+      const data = built(step);
+      find(".vs-built-label").textContent =
+        data?.label ?? "What the viewer builds";
+      out.replaceChildren();
+      if (!data) {
+        out.append(
+          make(
+            "p",
+            "vs-wait",
+            step.tags
+              ? "A screen reader never sees those tags. It gets what a viewer builds from them. Next: open the file in Firefox."
+              : "Nothing yet. First, the tags."
+          )
+        );
+        return;
+      }
+      if (data.runs) {
+        const runs = make("div", "vs-runs");
+        for (const run of data.runs) {
+          const row = make("div", "vs-run");
+          row.append(make("span", "vs-role", "text"), make("span", "", run));
+          runs.append(row);
+        }
+        out.append(runs);
+      } else {
+        const meta = make("p", "vs-meta", "table · 3 rows · 3 columns · size ");
+        const size = make("span", "vs-size", data.size);
+        size.dataset.bad = String(data.size === "0 × 0");
+        size.dataset.on = String(step.focus === "table");
+        meta.append(size);
+        const table = make("div", "vs-grid vs-tree-grid");
+        table.dataset.zero = String(data.sized === false);
+        grid.forEach((row, i) =>
+          row.forEach((text, j) => {
+            const id = `${i},${j}`;
+            const cell = make("div", "vs-cell");
+            cell.dataset.kind = kinds[i][j];
+            if (step.focus === "cell") {
+              if (id === at) cell.dataset.current = "true";
+              const header = data.headers?.find(([name]) => name === text);
+              if (header) cell.dataset.link = header[1];
+            }
+            cell.append(
+              make("span", "vs-role", roleNames[kinds[i][j]]),
+              make("span", "", text)
+            );
+            table.append(cell);
+          })
+        );
+        out.append(meta, table);
+        if (data.headers) {
+          const list = make("p", "vs-headers", "Headers of 9: ");
+          for (const [name, kind] of data.headers) {
+            const chip = make(
+              "span",
+              "vs-chip",
+              kind === "added" ? `${name} (added)` : name
+            );
+            chip.dataset.link = kind;
+            list.append(chip);
+          }
+          out.append(list);
+        }
+      }
+      if (data.said) {
+        const said = make("p", "vs-said");
+        said.append(
+          make("span", "vs-said-by", "VoiceOver: "),
+          make("span", "vs-phrase", `“${data.said}”`)
+        );
+        out.append(said);
+      }
+      out.append(make("p", "vs-more", data.more));
+    };
+
+    const show = (to: number) => {
+      index = Math.max(0, Math.min(steps.length - 1, to));
+      const step = steps[index];
+      figure.dataset.end = step.end ? "true" : "false";
+      figure.dataset.tags = String(step.tags);
+      for (const cell of all(".vs-page .vs-cell")) {
+        const id = cell.dataset.cell!;
+        cell.dataset.link =
+          step.tags && step.focus === "cell" ? (links[id] ?? "") : "";
+      }
+      drawTags(step);
+      drawBuilt(step);
+      for (const pill of all<HTMLButtonElement>(".vs-pills button"))
+        pill.setAttribute(
+          "aria-pressed",
+          pill.dataset.viewer === step.viewer ? "true" : "false"
+        );
+      caption.textContent = step.caption ?? "";
+      find(".vs-count").textContent = `${index + 1} / ${steps.length}`;
+      find<HTMLButtonElement>('[data-go="prev"]').disabled = index === 0;
+      find<HTMLButtonElement>('[data-go="first"]').disabled = index === 0;
+      find<HTMLButtonElement>('[data-go="next"]').disabled =
+        index === steps.length - 1;
+      // The caption moves first; the panel follows it.
+      for (const element of [caption, out]) element.classList.remove("vs-in");
+      void out.offsetWidth;
+      for (const element of [caption, out]) element.classList.add("vs-in");
+      place();
+    };
+
+    for (const button of all<HTMLButtonElement>(".vs-controls button"))
+      button.addEventListener("click", () => {
+        const go = button.dataset.go;
+        show(go === "first" ? 0 : go === "prev" ? index - 1 : index + 1);
+      });
+    for (const pill of all<HTMLButtonElement>(".vs-pills button"))
+      pill.addEventListener("click", () =>
+        show(steps.findIndex(step => step.viewer === pill.dataset.viewer))
+      );
+    figure.addEventListener("keydown", event => {
+      if (event.key === "ArrowRight") show(index + 1);
+      else if (event.key === "ArrowLeft") show(index - 1);
+      else return;
+      event.preventDefault();
+    });
+    new ResizeObserver(place).observe(find(".vs-page"));
+    show(0);
+  }
+
+  const setUpAll = () =>
+    document.querySelectorAll<HTMLElement>(".viewer-steps").forEach(setUp);
+  setUpAll();
+  document.addEventListener("astro:page-load", setUpAll);
+</script>
+
+<style is:global>
+  .viewer-steps {
+    /* Dark enough for 4.5:1 contrast on their own tinted backgrounds. */
+    --vs-col: #1d4ed8;
+    --vs-row: #166534;
+    --vs-muted: #4b5563;
+    --vs-cell: #c2410c;
+    --vs-bad: #dc2626;
+    --vs-good: #15803d;
+    --vs-warn: #b45309;
+    margin-block: 1.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    /* Not inherit: the article's own text colour does not follow dark mode. */
+    color: var(--foreground);
+  }
+  [data-theme="dark"] .viewer-steps {
+    --vs-muted: var(--muted-foreground);
+    --vs-col: #7cb8ff;
+    --vs-row: #5fe08f;
+    --vs-cell: #fb923c;
+    --vs-bad: #ff8a8a;
+    --vs-good: #5fe08f;
+    --vs-warn: #fbbf24;
+  }
+  .viewer-steps p {
+    margin: 0;
+  }
+  .viewer-steps button {
+    font: inherit;
+    color: var(--foreground);
+    cursor: pointer;
+  }
+  /* Controls sit at the top, beside the pills, so the caption under them is the first thing read after a click. */
+  .viewer-steps .vs-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+  .viewer-steps .vs-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+  .viewer-steps .vs-pills button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    font-size: 0.8rem;
+  }
+  .viewer-steps .vs-pills button[aria-pressed="true"] {
+    border-color: var(--foreground);
+    background: var(--foreground);
+    color: var(--background);
+  }
+  /* The one headline: larger than anything in the panels. */
+  .viewer-steps .vs-caption {
+    min-height: 1.3em;
+    margin-top: 0.75rem;
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+  .viewer-steps .vs-caption.vs-in {
+    animation: vs-rise 0.3s ease-out;
+  }
+
+  .viewer-steps .vs-body {
+    position: relative;
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+    grid-template-areas: "tree page" "tree built";
+    grid-template-rows: auto 1fr;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .viewer-steps .vs-panel {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    min-width: 0;
+  }
+  .viewer-steps .vs-label {
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .viewer-steps .vs-tree {
+    grid-area: tree;
+    transition: opacity 0.3s;
+  }
+  .viewer-steps[data-tags="false"] .vs-tree {
+    opacity: 0.35;
+  }
+  .viewer-steps .vs-lines {
+    margin-top: 0.4rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+  }
+  .viewer-steps .vs-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.45rem;
+    min-height: 1.625rem;
+    padding: 0 0.35rem;
+    border: 1.5px solid transparent;
+    border-radius: 0.3rem;
+  }
+  .viewer-steps .vs-tag {
+    color: var(--vs-muted);
+    font-weight: 700;
+  }
+  .viewer-steps .vs-line[data-kind="c"] .vs-tag {
+    color: var(--vs-col);
+  }
+  .viewer-steps .vs-line[data-kind="r"] .vs-tag {
+    color: var(--vs-row);
+  }
+  .viewer-steps .vs-attr {
+    color: var(--vs-muted);
+    font-size: 0.68rem;
+  }
+  .viewer-steps .vs-line[data-link="col"] {
+    border-color: var(--vs-col);
+    background: color-mix(in oklab, var(--vs-col) 15%, transparent);
+  }
+  .viewer-steps .vs-line[data-link="row"] {
+    border-color: var(--vs-row);
+    background: color-mix(in oklab, var(--vs-row) 15%, transparent);
+  }
+  .viewer-steps .vs-line[data-current="true"] {
+    border-color: var(--vs-cell);
+    background: color-mix(in oklab, var(--vs-cell) 18%, transparent);
+  }
+
+  .viewer-steps .vs-pagebox {
+    grid-area: page;
+  }
+  .viewer-steps .vs-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 6rem 5rem 5rem;
+    width: max-content;
+    max-width: 100%;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+  }
+  .viewer-steps .vs-cell {
+    padding: 0.45rem 0.6rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+  /* The page shows what a sighted reader sees: a bold first row and first column, no roles. */
+  .viewer-steps .vs-page .vs-cell:nth-child(-n + 3),
+  .viewer-steps .vs-page .vs-cell:nth-child(3n + 1) {
+    font-weight: 700;
+  }
+  .viewer-steps .vs-cell[data-link="col"] {
+    box-shadow: inset 0 0 0 2px var(--vs-col);
+  }
+  .viewer-steps .vs-cell[data-link="row"] {
+    box-shadow: inset 0 0 0 2px var(--vs-row);
+  }
+  .viewer-steps .vs-cell[data-link="added"] {
+    background: color-mix(in oklab, var(--vs-bad) 10%, transparent);
+    box-shadow: inset 0 0 0 2px var(--vs-bad);
+  }
+  .viewer-steps .vs-cursor {
+    position: absolute;
+    border: 3px solid var(--vs-cell);
+    border-radius: 3px;
+    background: color-mix(in oklab, var(--vs-cell) 15%, transparent);
+    pointer-events: none;
+    transition:
+      left 0.25s ease-out,
+      top 0.25s ease-out,
+      width 0.25s ease-out,
+      height 0.25s ease-out;
+  }
+
+  .viewer-steps .vs-built {
+    grid-area: built;
+    min-height: 21rem;
+  }
+  /* The panel follows the caption, and only fades. */
+  .viewer-steps .vs-out.vs-in {
+    animation: vs-fade 0.3s ease-out 0.35s backwards;
+  }
+  .viewer-steps .vs-wait {
+    margin-top: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .viewer-steps .vs-meta {
+    margin-top: 0.4rem;
+    color: var(--vs-muted);
+    font-size: 0.8rem;
+  }
+  .viewer-steps .vs-size {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .viewer-steps .vs-size[data-bad="true"][data-on="true"] {
+    padding: 0.05rem 0.35rem;
+    border: 1.5px dashed var(--vs-bad);
+    border-radius: 0.3rem;
+    color: var(--vs-bad);
+  }
+  /* Wider than the page's table: each cell also carries its role. */
+  .viewer-steps .vs-tree-grid {
+    grid-template-columns: repeat(3, 6.9rem);
+  }
+  .viewer-steps .vs-tree-grid .vs-cell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0.3rem 0.45rem;
+  }
+  .viewer-steps .vs-role {
+    color: var(--vs-muted);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .viewer-steps .vs-tree-grid .vs-cell[data-kind="c"] .vs-role {
+    color: var(--vs-col);
+  }
+  .viewer-steps .vs-tree-grid .vs-cell[data-kind="r"] .vs-role {
+    color: var(--vs-row);
+  }
+  .viewer-steps .vs-tree-grid .vs-cell[data-current="true"] {
+    background: color-mix(in oklab, var(--vs-cell) 15%, transparent);
+    box-shadow: inset 0 0 0 3px var(--vs-cell);
+  }
+  .viewer-steps .vs-tree-grid[data-zero="true"] {
+    border-style: dashed;
+    border-color: var(--vs-bad);
+    opacity: 0.55;
+  }
+  .viewer-steps .vs-tree-grid[data-zero="true"] .vs-cell {
+    border-style: dashed;
+  }
+  .viewer-steps .vs-runs {
+    display: grid;
+    gap: 0.3rem;
+    margin-top: 0.6rem;
+  }
+  .viewer-steps .vs-run {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    font-size: 1rem;
+  }
+  .viewer-steps .vs-headers {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .viewer-steps .vs-chip {
+    padding: 0.1rem 0.5rem;
+    border: 1.5px solid var(--vs-col);
+    border-radius: 999px;
+    color: var(--vs-col);
+    font-weight: 700;
+  }
+  .viewer-steps .vs-chip[data-link="row"] {
+    border-color: var(--vs-row);
+    color: var(--vs-row);
+  }
+  .viewer-steps .vs-chip[data-link="added"] {
+    border-style: dashed;
+    border-color: var(--vs-bad);
+    color: var(--vs-bad);
+  }
+  .viewer-steps .vs-said {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .viewer-steps .vs-said-by {
+    color: var(--vs-muted);
+  }
+  .viewer-steps .vs-phrase {
+    font-size: 1.15rem;
+    font-weight: 800;
+  }
+  .viewer-steps .vs-more {
+    margin-top: 0.6rem;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .viewer-steps .vs-end {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--background);
+    text-align: center;
+    animation: vs-fade 0.4s;
+  }
+  .viewer-steps[data-end="true"] .vs-end {
+    display: flex;
+  }
+  .viewer-steps .vs-end-a {
+    color: var(--vs-warn);
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+  .viewer-steps .vs-end-b {
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .viewer-steps .vs-end-c {
+    max-width: 34rem;
+    margin-inline: auto;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .viewer-steps .vs-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .viewer-steps .vs-controls button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: transparent;
+    font-size: 0.9rem;
+  }
+  .viewer-steps .vs-controls button:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+  .viewer-steps .vs-controls button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .viewer-steps .vs-controls .vs-next {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-foreground);
+    font-weight: 700;
+  }
+  .viewer-steps .vs-count {
+    min-width: 3.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .viewer-steps figcaption {
+    margin-top: 0.75rem;
+  }
+
+  @keyframes vs-rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.4rem);
+    }
+  }
+  @keyframes vs-fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .viewer-steps * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+  /* Narrow screens: the page and the viewer first, the tags under them. */
+  @media (max-width: 640px) {
+    .viewer-steps .vs-body {
+      grid-template-columns: 1fr;
+      grid-template-areas: "page" "built" "tree";
+      grid-template-rows: auto;
+    }
+    .viewer-steps .vs-tree-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+    }
+    .viewer-steps .vs-tree-grid .vs-role {
+      font-size: 0.55rem;
+      letter-spacing: 0;
+    }
+    .viewer-steps .vs-end-b {
+      font-size: 1.5rem;
+    }
+    .viewer-steps .vs-caption {
+      font-size: 1.3rem;
+    }
+  }
+</style>

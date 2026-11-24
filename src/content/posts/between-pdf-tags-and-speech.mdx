@@ -1,0 +1,266 @@
+---
+title: "PDF accessibility is missing the part HTML settled years ago"
+subtitle: That is why automated tests are far less reliable for a PDF than for HTML.
+description: A passing accessibility check means much less for a PDF than for HTML, because the W3C spec for what PDF viewers expose to screen readers is still an early draft. Three faults we found in valid PDFs, how we read the layer where they happen, and what Typfolio's dev tools will show.
+pubDatetime: 2026-11-24T20:30:00Z
+tags:
+  - accessibility
+  - pdf
+  - typfolio
+---
+
+import ViewerSteps from "@/components/ViewerSteps.astro";
+import MappingLanes from "@/components/MappingLanes.astro";
+
+By **Kerem Atam**, HelioCampus
+
+A screen reader does not read a PDF's tags. It reads what the PDF viewer builds from them. For HTML, W3C specs define what a browser must build, and browsers are tested against them, so checking the page tells you a lot about what a screen reader will get. For PDF the equivalent spec, [PDF-AAM](https://w3c.github.io/aria/pdf-aam/), is still an early draft. Every viewer has its own rules, and PDF accessibility checks stop at the file. So a PDF can pass validation and still have a table read with the wrong headers in one viewer and not found at all in another.
+
+<MappingLanes />
+
+> [!NOTE] About this post
+> [Typfolio](https://github.com/HelioCampus/typfolio) is HelioCampus's open-source library for generating accessible PDFs in the browser from Typst templates. [The last post](/posts/accessible-pdfs/) showed that a table can pass PDF/UA validation and still be read differently in every viewer. This one shows why: what each viewer builds from the tags, how to read it with a script, and three faults we found there. The next release of `@typfolio/dev-tools` adds a Readers view, which shows a table the way Firefox's viewer presents it, next to its tags.
+
+## The check you already know
+
+If you build for the web, you have a routine. You run axe or Lighthouse on the page, maybe keep an ARIA snapshot in a Playwright test, and when they pass you move on with reasonable confidence.
+
+PDF has a routine that looks the same. A PDF carries **tags**, its version of semantic HTML: this is a heading, this is a table, this cell is a header. A standard, **PDF/UA**, says which tags a file must have, and a validator such as veraPDF checks the file against it. The table tags will look familiar. A header cell has a `Scope`, like `<th scope>`. A cell can list its `Headers`, like the `headers` attribute. A table can carry a `Summary`, a sentence that describes it.
+
+So a PDF that passes validation feels like a page that passes axe. It is not the same kind of pass, and the rest of this post is about why.
+
+One word first. By **viewer** we mean whatever opens the PDF. For most readers that is the PDF viewer built into their browser.
+
+## Where the last post stopped
+
+We ended the last post with a table like this one. The same correctly tagged file, opened in five viewers:
+
+| Viewer | Screen reader | Read as a table? |
+| --- | --- | --- |
+| Adobe Acrobat Reader | NVDA, JAWS | Yes |
+| Firefox | NVDA, JAWS | Yes, but nested headers are misread |
+| Preview, Safari | VoiceOver | Yes, but the summary is never spoken |
+| Firefox | VoiceOver | No: "Table not found" |
+| Chrome | NVDA, VoiceOver | No |
+
+Every row is a recording of speech. Speech tells you what went wrong for the listener. It does not tell you where. Is "Table not found" Firefox's doing, or VoiceOver's? Does Preview throw the summary away, or does VoiceOver decide not to read it? From the outside, the two look the same.
+
+## A screen reader never reads your tags
+
+A screen reader does not open the PDF. It asks the app that shows the PDF, through an API of the operating system, and gets back a tree: this is a table, it has three rows, this cell is in row 2, these are its headers, this is where it sits on the screen.
+
+So there are four layers, not two. A web page has the same four:
+
+| Layer | On the web | For a PDF |
+| --- | --- | --- |
+| What the author writes | HTML and ARIA | Tags, written by your PDF generator |
+| What the app builds from it | The browser's accessibility tree | The viewer's tree. Acrobat, Firefox, Preview and Chrome each build their own |
+| How it is handed over | The OS accessibility API: UI Automation and IAccessible2 on Windows, the AX API on macOS, AT-SPI on Linux | The same APIs |
+| What is said | Speech from NVDA, JAWS, VoiceOver… | The same screen readers |
+
+A validator checks the first layer. A screen reader test hears the last. The two in the middle are where a correct file turns into a wrong reading, and most testing never looks at them.
+
+Here is one cell of one valid table, followed from the tags into three viewers:
+
+<ViewerSteps />
+
+## Why this hurts PDF more than HTML
+
+The web has the same four layers. A web developer rarely thinks about the middle two, and gets away with it, for one reason: **the mapping is written down, and every browser implements it.**
+
+The W3C publishes how every HTML element and ARIA role must appear in each operating system's API ([HTML-AAM](https://www.w3.org/TR/html-aam-1.0/), [Core-AAM](https://www.w3.org/TR/core-aam-1.2/)). The ARIA part has been a W3C Recommendation since 2017. The HTML part is formally still a working draft, but it has been published since 2015, it covers every element, and every browser implements it and tests against it. So when a page has a `<th scope="row">`, you can check the page, with axe or an ARIA snapshot in Playwright, and trust the browser to carry it down correctly.
+
+Web tests are not perfect either. Browsers have mapping bugs too, and many teams still test with a real screen reader. But the browser's part is written down in full, implemented and tested.
+
+For PDF tags that mapping is only now being written. PDF/UA says what a file must contain. What a viewer must build from it is the subject of [PDF-AAM](https://w3c.github.io/aria/pdf-aam/), a W3C draft from the same working group. It is an Editor's Draft, dated October 2026, and it maps headings, links and grouping elements so far. Tables are not in it yet: nothing there says what to build from a `TH` with a Scope, a Headers list, or a table Summary. Every viewer in use today was written before it. So each has its own mapping, and they disagree:
+
+- Firefox turns the tags into hidden HTML and lets its web engine do the rest.
+- Chrome has its own mapping, mostly switched off.
+- Preview and Safari share Apple's PDFKit.
+- Acrobat builds a plain tree and gives screen readers an interface of its own on top.
+
+On the web, testing the top layer is enough because the layers below are specified and tested. For PDF that work has started and is not there yet, so the layers below are where you have to look.
+
+## You can read that layer without a screen reader
+
+The tree is data. A script can ask for it the same way a screen reader does.
+
+### Firefox, headless
+
+Firefox's viewer is [pdf.js](https://mozilla.github.io/pdf.js/), and it builds its structure inside the page. Playwright can open a PDF in Firefox and read it, with no display, on any CI machine. For our table with row headers it comes out like this:
+
+```text
+table
+  row
+    columnheader "Student"
+    columnheader "Autumn"
+    columnheader "Spring"
+  row
+    rowheader "Ada" [described by "Student"]
+    cell "9" [described by "Autumn", "Ada", "Student"]
+    cell "8" [described by "Spring", "Ada", "Student"]
+```
+
+Already something the tags do not say. In the PDF, the cell "9" names two headers, Autumn and Ada. The viewer hands over three: it adds the header of the header. That is why VoiceOver, once it reads this table, says "Ada Autumn Ada Student 9".
+
+### Any viewer, through the OS
+
+One step further down is the tree as the operating system receives it, with things the page does not have: each element's size and position, and the table's row and column numbers with the header cells attached to each cell. On a Mac a small Swift program reads it through the AX API, from Preview, Safari, Chrome and Firefox alike, with no screen reader running. On Windows two PowerShell scripts do the same through UI Automation and MSAA, which we ran in a virtual machine on Firefox, Chrome and Acrobat Reader.
+
+## Three faults, and where each one lives
+
+### The summary: dropped by the viewer
+
+`pdf.table-summary` puts one sentence on the table. NVDA and JAWS read it. VoiceOver in Preview and Safari never does.
+
+In the tree Preview and Safari hand over, the table has rows, columns and headers, and no summary anywhere. **The viewer drops it.** VoiceOver has nothing to read. No setting in the screen reader will bring it back, and nothing in the file is wrong.
+
+### Nested headers in Firefox: right in the page, wrong in the tree
+
+Take a table where "Score" spans "Autumn" and "Spring". With NVDA and JAWS in Firefox we had recorded "Spring Score" for a cell that sits under Autumn.
+
+In the page, Firefox's structure is correct: the cell "9" is described by Autumn, then Score. One layer down it is not. The spans are lost, so the second header row slides one column to the left (shortened from the dump):
+
+```text
+Table  columns=3  rows=3
+  Row
+    Cell  column 0   "Student"
+    Cell  column 1   "Score"
+  Row
+    Cell  column 0   "Autumn"
+    Cell  column 1   "Spring"
+  Row
+    Cell  column 0   "Ada"   headers: Autumn, Student
+    Cell  column 1   "9"     headers: Spring, Score
+    Cell  column 2   "8"     headers: none
+```
+
+"9" gets Spring and Score, which is the wrong reading we had recorded, and "8" gets nothing. The fault is not in the PDF and not in the screen reader.
+
+It is not in pdf.js either, which surprised us. pdf.js does write the spans: since [a fix merged in August 2026](https://github.com/mozilla/pdf.js/pull/21702), "Score" carries `aria-colspan="2"` and "Student" carries `aria-rowspan="2"` in the page. Firefox's accessibility engine does not use those two attributes when it builds a table. [The bug for that](https://bugzilla.mozilla.org/show_bug.cgi?id=1177918) was opened in June 2015 and is still open.
+
+You can see it with no PDF at all. We wrote the same table twice in a plain HTML page and read the tree Firefox hands over for each:
+
+| The table written as | "Score" covers | Headers of "9" | Headers of "8" |
+| --- | --- | --- | --- |
+| Elements with ARIA roles, `aria-colspan` and `aria-rowspan`, as pdf.js writes them | 1 column | Spring, Score | none |
+| A native `<table>` with `colspan` and `rowspan` | 2 columns | Autumn, Score | Spring, Score |
+
+The first row of that table is the PDF's tree, cell for cell. So a fix that landed in the viewer three months ago does not reach a screen reader, because of a bug one layer down that is eleven years old. If you build tables from ARIA roles on the web, the same bug reaches your pages.
+
+We first read this tree on a Mac, while the speech had been recorded on Windows. So we read the tree on Windows too. It is the same, cell for cell, and NVDA in the same session said "Spring Score, column 2, 9". The speech is the tree read aloud.
+
+This one matters for testing: **the cheap headless check passes.** Only the OS-level tree shows it.
+
+### "Table not found": a table with no size
+
+The oddest one. In Firefox on a Mac, VoiceOver says "Table not found" for a table that Safari reads without trouble.
+
+We compared the two trees for the same file. Rows, columns and headers match. One thing does not:
+
+| | Safari | Firefox |
+| --- | --- | --- |
+| Table | 162 × 65 | 0 × 0 |
+| Each cell | about 43 × 16 | 0 × 0 |
+
+Firefox's table has no size. Its cells are empty elements that borrow their text from a separate layer of the page, so they take up no room.
+
+Size was not the only difference, so we separated it from the other, how the text is attached, with four small copies of the viewer's markup:
+
+| Text attached | Table has a size | VoiceOver |
+| --- | --- | --- |
+| As Firefox does it | No | Table not found |
+| Inside the cell | Yes | Table found |
+| As Firefox does it | **Yes** | **Table found** |
+| Inside the cell | **No** | **Table not found** |
+
+The size decides. Then we tried it on the real thing: the same PDF in Firefox's own viewer, with a script that sets a width and height on the table's elements and changes nothing else. VoiceOver found the table and read it, row header included.
+
+On Windows, Firefox's table has no size either, and NVDA and JAWS find it and read it. So this is one screen reader's rule meeting one viewer's markup: the same tree is a table to NVDA and nothing to VoiceOver.
+
+No accessibility standard says an element must have a size. In practice a thing of zero size is often treated as hidden. The PDF cannot fix this. It is the viewer's to fix, and we are reporting it to pdf.js.
+
+{/* TODO before publishing: link the pdf.js issue once it is filed. */}
+
+### And Chrome
+
+For completeness: Chrome's tree for these files has no table at all, a heading and one run of text per row. Its tag support exists behind a flag. With the flag on there is a table, but the three cells of the first row arrive merged into one, in every file we tried. Chrome on Windows gives the same two results, no table without the flag and the merged row with it, so this is Chrome's mapping and not one system's.
+
+With the flag on, VoiceOver still says "Table not found". In the macOS tree that table is 0 wide. We did not test it with a size given, so we cannot say the width is the cause, but it is the Firefox pattern again.
+
+### Acrobat: the tree is not the whole story
+
+Acrobat was the best reader in the last post, so we expected the best tree. It was the hardest to read at all.
+
+With no screen reader running, Acrobat hands over no document: the page is an empty pane. Setting the system flag that says "a screen reader is running" did not change that. With NVDA running, the document appears, and the table in it is a solid one: every row and cell has the size of what is drawn, and header cells are marked as column or row headers.
+
+But that tree has no spans, no link from a cell to its headers and no summary. NVDA in Acrobat speaks all three. They reach the screen reader through Acrobat's own interface, which a screen reader asks for on top of the standard tree.
+
+That interface is not hidden. It is a COM interface that Acrobat registers on the system, and NVDA's open source shows how to ask for it. So we asked. For the table with nested headers it gave us this:
+
+```text
+Table
+  TR   TH "Student"  id U1x0y0  Scope Column  RowSpan 2
+       TH "Score"    id U1x1y0  Scope Column  ColSpan 2
+  TR   TH "Autumn"   id U1x1y1  Scope Column  Headers U1x1y0
+       TH "Spring"   id U1x2y1  Scope Column  Headers U1x1y0
+  TR   TD "Ada"   Headers U1x0y0
+       TD "9"     Headers U1x1y1
+       TD "8"     Headers U1x2y1
+```
+
+Those are the PDF's tags, as written: the ids, the `Headers` lists, the spans, and on the other file the `Summary` in full. Acrobat does not turn a tagged table into its own idea of a table. It passes the tags on and lets the screen reader work out the rows, columns and headers.
+
+That is the plainest explanation we have for why Acrobat reads best: nothing is rebuilt, so nothing is lost. The other three viewers each rebuild the table, and each fault in this post is a rebuilding fault. The cost is that the mapping for Acrobat sits inside every screen reader instead, which is one more place we have not looked.
+
+## What each layer can and cannot tell you
+
+| What went wrong | Tags | Firefox's page, headless | OS-level tree | Speech |
+| --- | --- | --- | --- | --- |
+| A row header is missing in the file | Yes | Yes | Yes | Yes |
+| The viewer adds headers of headers | No | Yes | Yes | Yes |
+| The viewer drops the summary | No | No | Yes | Yes, without saying who dropped it |
+| Nested headers shift | No | No | Yes | Yes, as a wrong word |
+| The table has no size | No | Only if you measure sizes | Yes | Yes, as "Table not found" |
+| The exact words spoken | No | No | No | Yes |
+
+Each layer down costs more and sees more:
+
+- **Tags:** free, anywhere. Catches your own mistakes. The PDF version of linting your HTML.
+- **The viewer's page:** free in CI, one viewer. Catches what that viewer does to correct tags. The closest thing PDF has to an ARIA snapshot test.
+- **The OS tree:** needs a real desktop, any viewer that builds one without a screen reader. Says where a fault lives. Most web teams never need to look here. For PDF it is where the faults were.
+- **Speech:** needs a desktop and a screen reader, slow. The only layer that is the user's experience. The manual screen reader pass you already know.
+
+Our own takeaway: check tags and the viewer's page on every change, read the OS tree when a viewer or your template changes in a way that matters, and listen with a real screen reader now and then to make sure the layers above still predict what is heard.
+
+## The gap
+
+Look at where the three faults live. The summary is dropped in Apple's PDFKit. The spans are lost in Firefox's accessibility engine. The table without a size comes from pdf.js. Three projects, three owners, and the file was correct every time.
+
+Nobody was in a position to notice. The people who make PDFs test the file, and the file passes. The people who make viewers have no shared set of tagged PDFs with a stated right answer to run against. So each fault waits for someone to open one file in one viewer with one screen reader and hear that something is off. That is how we found these, by hand, on one machine. One of them had been waiting since 2015.
+
+The web closed this gap with two things together: a written mapping, and a shared test suite, [web-platform-tests](https://web-platform-tests.org/), that every browser runs, with work under way to test the OS-level mappings themselves. For PDF the first is being drafted. The second does not exist:
+
+- **No shared test files.** A small public set of tagged PDFs, each with the tree a viewer should build from it.
+- **No shared way to read the result.** A tool that dumps what each viewer hands the OS, on macOS, Windows and Linux, in one format.
+- **No published results.** A table like the ones in this post, for every viewer, rerun when a viewer ships a new version.
+
+Everything in this post is a rough first pass at those three, for tables only, on one Mac and one Windows virtual machine. It was enough to find three faults in a week.
+
+<p class="text-accent mt-10 mb-0 text-sm font-semibold tracking-widest uppercase [&+h2]:mt-2">How we do it in Typfolio</p>
+
+## Why the tags panel is getting a Readers view
+
+`@typfolio/dev-tools` has a panel that shows a PDF's tags beside your page while you work on a template. It answers the question from the last post: which headers does the PDF tie this cell to?
+
+After this work, that is only the first of the questions. So the next release adds a second view beside the tags, the table as a viewer presents it.
+
+![The tags panel with the Readers view open. On the left, the tags of a table, with the data cell 9 selected. On the right, the same table as a grid: three column headers, two row headers and four cells. The cell 9 is outlined, and the headers Student, Autumn and Ada are highlighted. Below the grid: headers the PDF names, Autumn and Ada; headers the viewer attaches, Autumn, Ada and Student.](@/assets/posts/between-pdf-tags-and-speech/readers-row-headers.png)
+
+Select a cell and it shows two lists side by side: the headers the PDF names, and the headers Firefox's viewer attaches. When they differ, as they do above, a note says so in words. The grid shows the role the viewer gives each cell, which is not always the one you wrote: a `TH` without a Scope becomes a column header or a row header depending on where it sits.
+
+Two things about how it is built.
+
+**It is a model, and the model is tested against the real viewer.** The panel does not run Firefox. It follows the same rules pdf.js follows. To keep it honest, a test opens each of our table files in a real Firefox, reads the viewer's structure, and requires the model to produce the same thing, line for line. When a new Firefox changes the mapping, that test fails and we find out.
+
+**It shows one viewer, and says so.** It does not show sizes, the OS tree, or other viewers yet. The faults in this post that live further down, the missing size and the shifted headers, are not in it. We would rather show one layer truthfully than four by guesswork.
