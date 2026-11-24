@@ -13,6 +13,9 @@ const posts = defineCollection({
       pubDatetime: z.date(),
       modDatetime: z.date().optional().nullable(),
       title: z.string(),
+      // One line shown under the title on the post page. Not used in lists or
+      // link previews; `description` is for those.
+      subtitle: z.string().optional(),
       featured: z.boolean().optional(),
       draft: z.boolean().optional(),
       tags: z.array(z.string()).default(["others"]),
