@@ -178,7 +178,7 @@ The size decides. Then we tried it on the real thing: the same PDF in Firefox's 
 
 On Windows, Firefox's table has no size either, and NVDA and JAWS find it and read it. So this is one screen reader's rule meeting one viewer's markup: the same tree is a table to NVDA and nothing to VoiceOver.
 
-No accessibility standard says an element must have a size. In practice a thing of zero size is often treated as hidden. The PDF cannot fix this. It is the viewer's to fix, and we are reporting it to pdf.js.
+In practice a thing of zero size is often treated as hidden. The PDF cannot fix this. It is the viewer's to fix.
 
 > [!NOTE] Update, 25 November 2026
 > Reported to pdf.js as [issue 22597](https://github.com/mozilla/pdf.js/issues/22597). The viewer breaks no written rule here: what a viewer must build from a table tag is not written down yet, so a table with no size passes every check and is lost to one screen reader. The missing layer again.
